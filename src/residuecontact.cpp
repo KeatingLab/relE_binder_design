@@ -64,7 +64,7 @@ bool checkVDWRadii::initConstants() {
     ignore_atoms = {"H"};
     max_radius = 0;
     for (auto it : radii) if (it.second > max_radius) max_radius = it.second;
-    cout << "max radius: " << max_radius << endl;
+    // cout << "max radius: " << max_radius << endl;
     return true;
 }
 
@@ -82,13 +82,13 @@ string checkVDWRadii::getName(const Atom* A, bool strict) {
     return "";
 }
 
-vdwContacts::vdwContacts(Structure* _S) : S(_S) {
+vdwContacts::vdwContacts(const Structure& _S) : S(_S) {
     // Construct proximity search object
-    allAtoms = S->getAtoms();
+    allAtoms = S.getAtoms();
     allAtomsPS = ProximitySearch(allAtoms,1.5);
     
     // Search each residue for other residues making VDW contacts
-    for (Residue* R : S->getResidues()) {
+    for (Residue* R : S.getResidues()) {
         set<Residue*> contactedResidues = getInteractingRes(R);
         interacting[R] = contactedResidues;
     }
@@ -132,10 +132,10 @@ set<Residue*> vdwContacts::getInteractingRes(Residue* R) {
     return contacts;
 }
 
-map<int,set<int> > vdwContacts::getAllInteractingRes() {
+map<int,set<int> > vdwContacts::getAllInteractingRes(bool verbose) {
     map<int,set<int> > allInteracting;
     int numContacts = 0;
-    for (Residue* Ri : S->getResidues()) {
+    for (Residue* Ri : S.getResidues()) {
         set<int> interactingResIdx;
         for (Residue* Rj : getInteractingRes(Ri)) {
             interactingResIdx.insert(Rj->getResidueIndex());
@@ -143,6 +143,6 @@ map<int,set<int> > vdwContacts::getAllInteractingRes() {
         }
         allInteracting[Ri->getResidueIndex()] = interactingResIdx;
     }
-    cout << "In total, structure has " << numContacts << " VDW contacts" << endl;
+    if (verbose) cout << "In total, structure has " << numContacts << " VDW contacts" << endl;
     return allInteracting;
 }

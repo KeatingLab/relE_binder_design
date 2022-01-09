@@ -1,49 +1,49 @@
 #include "residueframe.h"
 
-residueFrame::residueFrame(Residue* R) : parent(R) {defineFrame(R);}
+/* --- --- --- --- --- residueFrame --- --- --- --- --- */
+
+residueFrame* residueFrame::frameRelativeToOther(const residueFrame& other) {
+    // find the transformation between other and the global reference frame
+    Transform other_to_ref = TransformFactory::switchFrames(Frame(), other);
+
+    // apply the transformation to this frame and return
+    residueFrame* result = new residueFrame(*this);
+    other_to_ref.apply(*result);
+    return result;
+}
+
+void residueFrame::writeToFile(string name, fstream& out) {
+    out << name << "\t";
+    out << this->getO() << "\t";
+    out << this->getXPos() << "\t";
+    out << this->getYPos() << "\t";
+    out << this->getZPos();
+    out << endl;
+}
 
 void residueFrame::defineFrame(Residue* R) {
-    /*
-    The position is defined as the 3D coordinate of the alpha-carbon, relative to the origin
-    */
-    bool strict = true;
-    position = R->findAtom("CA",strict);
-
     /*
     Following Ingraham et. al 2019, the orientation is defined as three basis vectors: [b, n, b x n]
     b = the negative bisector of the angle between N - Ca and C - Ca
     n = the unit vector normal to the plane formed between N - Ca and C - Ca
     */
 
+    bool strict = true;
     CartesianPoint N = R->findAtom("N",strict);
-    CartesianPoint Ca = position;
+    CartesianPoint Ca = R->findAtom("CA",strict);
     CartesianPoint C = R->findAtom("C",strict);
 
-    CartesianPoint N_to_Ca = (Ca-N)/(Ca-N).norm();
-    CartesianPoint Ca_to_C = (C-Ca)/(C-Ca).norm();
+    CartesianPoint N_to_Ca = (Ca-N);
+    CartesianPoint Ca_to_C = (C-Ca);
 
-    CartesianPoint n = N_to_Ca.cross(Ca_to_C)/(N_to_Ca.cross(Ca_to_C)).norm(); //n is x
-    CartesianPoint b = (N_to_Ca-Ca_to_C)/(N_to_Ca-Ca_to_C).norm(); //b is y
-    CartesianPoint u = n.cross(b)/(n.cross(b).norm());  //u is z
+    CartesianPoint z = Ca_to_C.cross(N_to_Ca); //normal to residue plane (n)
+    CartesianPoint y = (N_to_Ca-Ca_to_C); // (b)
+    CartesianPoint x = y.cross(z);  //(u)
 
-    mstreal x_component = u.getX() + b.getX() + n.getX();
-    mstreal y_component = u.getY() + b.getY() + n.getY();
-    mstreal z_component = u.getZ() + b.getZ() + n.getZ();
-    bool unit_sphere = true;
-    orientation.constructSphericalCoordinatesFromXYZ(x_component,y_component,z_component,unit_sphere);
-
-    constructFrame(position,n,b,u);
+    constructFrame(Ca,x,y,z);
 }
 
-residueFrame residueFrame::frameRelativeToOther(residueFrame* other) {
-    // find position of other residue, relative to self
-    CartesianPoint relPos = other->getPosition() - position;
-
-    // find orientation of other residue, relative to self
-    sphericalCoordinate relOr = other->getOrientation() - orientation;
-
-    return residueFrame(relPos,relOr);
-}
+/* --- --- --- --- --- augmentedStructure --- --- --- --- --- */
 
 void augmentedStructure::writeToFile(string path_prefix) {
     // write each residue frame out such that the basis vector can be interpreted by cgo_basis.py script
@@ -52,12 +52,8 @@ void augmentedStructure::writeToFile(string path_prefix) {
     
     for (residueFrame& rF : frames) {
         Residue* R = rF.getParent();
-        out << R->getChainID() << R->getNum() << "\t";
-        out << rF.getPosition() << "\t";
-        out << rF.getUPos() << "\t";
-        out << rF.getBPos() << "\t";
-        out << rF.getNPos();
-        out << endl;
+        string name = R->getChainID() + MstUtils::toString(R->getNum());
+        rF.writeToFile(name,out);
     }
     out.close();
 }

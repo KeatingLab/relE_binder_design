@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
     
     Structure S(op.getString("p"));
     string structure_name = MstSys::splitPath(S.getName(),1);
-    vdwContacts vdwC(&S);
+    vdwContacts vdwC(S);
     
     fstream out;
     MstUtils::openFile(out, structure_name+"_vdwContacts.csv",fstream::out);

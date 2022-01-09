@@ -46,16 +46,16 @@ class vdwContacts {
      
      */
 public:
-    vdwContacts(Structure* _S);
+    vdwContacts(const Structure& _S);
     
     set<Residue*> getInteractingRes(Residue* R);
 
-    map<int,set<int> > getAllInteractingRes();
+    map<int,set<int> > getAllInteractingRes(bool verbose = false);
     
 protected:
     
 private:
-    Structure* S;
+    const Structure& S;
     vector<Atom*> allAtoms;
     ProximitySearch allAtomsPS;
     

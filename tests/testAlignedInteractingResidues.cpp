@@ -1,5 +1,6 @@
 #include "mstsystem.h"
 #include "mstoptions.h"
+#include "mstsequence.h"
 
 #include "alignframes.h"
 #include "residuecontact.h"
@@ -13,15 +14,14 @@ int main(int argc, char *argv[]) {
     
     Structure S(op.getString("p"));
     string structure_name = MstSys::splitPath(S.getName(),1);
-    vdwContacts vdwC(&S);
+    vdwContacts vdwC(S);
 
-    alignFrames alignF;
+    alignInteractingFrames alignF;
+    proteinFrameDB& db = alignF.getDB();
     augmentedStructure aS(S);
-    alignF.addTarget(aS);
+    db.addTarget(aS);
     
-    map<int,map<int,set<int> > > vdwContacts;
-    vdwContacts[0] = vdwC.getAllInteractingRes();
-    alignF.setVDWContacts(vdwContacts);
+    db.setVDWContacts(0,vdwC.getAllInteractingRes());
 
     residueFrame rF;
     alignF.setRefFrame(rF);
@@ -34,11 +34,10 @@ int main(int argc, char *argv[]) {
         cout << "aa: " << residue_aa << endl;
 
         alignF.setAA(residue_aa);
-        alignF.findInteractingRes();
+        alignF.findMobileFrames();
         cout << "Structure has " << alignF.getNumInteracting() << " residue interactions from this residue type" << endl;
 
         alignF.writeAlignedInteractingResToPDB(residue_aa+"_interactions.pdb");
     }
-    
     return 0;
 }

@@ -7,7 +7,7 @@ Method for loading the residue frames and drawing them as CGO arrows
 '''
 
 def drawCGOResFrames(pathToFile,cleanPrevious=True):
-    r"""Loads the PDB, the residue frame file, and then draws the basis vectors
+    r"""Loads the residue frame file and then draws the basis vectors
 
     After running 'buildGreedyClusters' seeds will be written out to a directory
     titled "seed_cluster_members". By providing this as `pathToSeedDir`, the
@@ -31,7 +31,7 @@ def drawCGOResFrames(pathToFile,cleanPrevious=True):
     hradius = 0.2
     radius = 0.1
 
-    # each line is formatted as CHAINID+RESNUM\tCa_pos\tu_pos\tb_pos\tn_pos
+    # each line is formatted as res_name\tCa_pos\tx_pos\ty_pos\tz_pos
     with open(pathToFile,'r') as file:
         res_lines = list(filter(lambda line: line != '', [line.rstrip('\n') for line in file]))
 
@@ -42,34 +42,35 @@ def drawCGOResFrames(pathToFile,cleanPrevious=True):
             raise ValueError('Wrong number of fields in '+pathToFile+": "+str(len(data)))
 
         #get residue properties
-        chainID = str(data[0][0])
-        resNum = int(data[0][1:])
-        resName = chainID+str(resNum)
+        # chainID = str(data[0][0])
+        # resNum = int(data[0][1:])
+        # resName = chainID+str(resNum)
+        resName = data[0]
 
         #get atom coordinates
         ca_coord= '['+','.join(data[1].split())+']'
-        u_coord = '['+','.join(data[2].split())+']'
-        b_coord = '['+','.join(data[3].split())+']'
-        n_coord = '['+','.join(data[4].split())+']'
+        x_coord = '['+','.join(data[2].split())+']'
+        y_coord = '['+','.join(data[3].split())+']'
+        z_coord = '['+','.join(data[4].split())+']'
 
         #make psuedo atoms
         caName = resName+"_Ca_point"
-        uName = resName+"_u_point"
-        bName = resName+"_b_point"
-        nName = resName+"_n_point"
+        xName = resName+"_x_point"
+        yName = resName+"_y_point"
+        zName = resName+"_z_point"
 
         cmd.pseudoatom(object=caName,label='',pos=ca_coord)
-        cmd.pseudoatom(object=uName,label='u',pos=u_coord)
-        cmd.pseudoatom(object=bName,label='b',pos=b_coord)
-        cmd.pseudoatom(object=nName,label='n',pos=n_coord)
+        cmd.pseudoatom(object=xName,label='x',pos=x_coord)
+        cmd.pseudoatom(object=yName,label='y',pos=y_coord)
+        cmd.pseudoatom(object=zName,label='z',pos=z_coord)
 
         #connect with CGO arrows
-        uVecName = resName+'_u_vec'
-        bVecName = resName+'_b_vec'
-        nVecName = resName+'_n_vec'
-        cgo_arrow(atom1=caName, atom2=uName, radius=radius, gap=0.0, hlength=0.25, hradius=hradius, color='white', name=uVecName)
-        cgo_arrow(atom1=caName, atom2=bName, radius=radius, gap=0.0, hlength=0.25, hradius=hradius, color='white', name=bVecName)
-        cgo_arrow(atom1=caName, atom2=nName, radius=radius, gap=0.0, hlength=0.25, hradius=hradius, color='white', name=nVecName)
+        xVecName = resName+'_x_vec'
+        yVecName = resName+'_y_vec'
+        zVecName = resName+'_z_vec'
+        cgo_arrow(atom1=caName, atom2=xName, radius=radius, gap=0.0, hlength=0.25, hradius=hradius, color='white', name=xVecName)
+        cgo_arrow(atom1=caName, atom2=yName, radius=radius, gap=0.0, hlength=0.25, hradius=hradius, color='white', name=yVecName)
+        cgo_arrow(atom1=caName, atom2=zName, radius=radius, gap=0.0, hlength=0.25, hradius=hradius, color='white', name=zVecName)
 
     cmd.hide('nonbonded',"*_Ca_point")
     cmd.group('points','*_point')

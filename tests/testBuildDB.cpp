@@ -13,21 +13,20 @@ int main(int argc, char *argv[]) {
     
     Structure S(op.getString("p"));
     string structure_name = MstSys::splitPath(S.getName(),1);
-    vdwContacts vdwC(&S);
+    vdwContacts vdwC(S);
 
-    alignFrames *alignFPointer = new alignFrames;
+    alignInteractingFrames *alignFPointer = new alignInteractingFrames;
+    proteinFrameDB& db = alignFPointer->getDB();
     augmentedStructure aS(S);
-    alignFPointer->addTarget(aS);
+    db.addTarget(aS);
     
-    map<int,map<int,set<int> > > vdwContacts;
-    vdwContacts[0] = vdwC.getAllInteractingRes();
-    alignFPointer->setVDWContacts(vdwContacts);
+    db.setVDWContacts(0,vdwC.getAllInteractingRes());
 
-    alignFPointer->writeDBFile("test.db");
+    db.writeDBFile("test.db");
 
     delete alignFPointer;
 
-    alignFrames alignF("test.db");
+    alignInteractingFrames alignF("test.db");
 
     residueFrame rF;
     alignF.setRefFrame(rF);
@@ -40,7 +39,7 @@ int main(int argc, char *argv[]) {
         cout << "aa: " << residue_aa << endl;
 
         alignF.setAA(residue_aa);
-        alignF.findInteractingRes();
+        alignF.findMobileFrames();
         cout << "Structure has " << alignF.getNumInteracting() << " residue interactions from this residue type" << endl;
 
         alignF.writeAlignedInteractingResToPDB(residue_aa+"_interactions.pdb");

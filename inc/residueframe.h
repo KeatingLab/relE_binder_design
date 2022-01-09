@@ -1,83 +1,34 @@
 #ifndef _RESIDUEFRAME_H
 #define _RESIDUEFRAME_H
 
+#include "mstsequence.h"
 #include "msttypes.h"
 #include "msttransforms.h"
-
-struct sphericalCoordinate {
-    void constructSphericalCoordinates(CartesianPoint P, bool unit_sphere) {
-        constructSphericalCoordinatesFromXYZ(P.getX(),P.getY(),P.getZ(),unit_sphere);
-    };
-
-    //  https://en.wikipedia.org/wiki/Spherical_coordinate_system#Coordinate_system_conversions
-    //  using the physics (ISO 80000-2:2019 convention)
-    void constructSphericalCoordinatesFromXYZ(mstreal x, mstreal y, mstreal z, bool unit_sphere) {
-        if (unit_sphere) r = 1.0;
-        else r = (CartesianPoint(x,y,z)).norm();
-        
-        theta = acos((x/r));
-
-        if (x > 0) {
-            phi = atan((y/x));
-        } else if (x < 0) {
-            phi = atan((y/x)) + M_PI;
-        } else phi = M_PI / 2.0;
-    };
-
-    sphericalCoordinate operator-(const sphericalCoordinate& other) const {
-        sphericalCoordinate relSphericalCoordinate;
-
-        // NOTE: assumes a "unit sphere" (so the two coordinates differ only by rotation)
-        if ((this->r != 1.0)||(other.r != 1.0)) MstUtils::error("Either this.r or other.r are not properly normalized (i.e. != 1): "+MstUtils::toString(this->r)+","+MstUtils::toString(other.r),"sphericalCoordinate:operator-");
-        relSphericalCoordinate.r = 1.0;
-
-        // find the change in angle, relative to self
-        relSphericalCoordinate.theta = other.theta - this->theta;
-        relSphericalCoordinate.phi = other.phi - this->phi;
-        
-        return relSphericalCoordinate;
-    };
-
-    mstreal r = 0;
-    mstreal theta = 0;
-    mstreal phi = 0;
-};
 
 class residueFrame : public Frame {
     public:
         residueFrame() {};
-        residueFrame(Residue* R);
-        residueFrame(const CartesianPoint& _position, const sphericalCoordinate& _orientation) : position(_position),orientation(_orientation) {return;}
+        residueFrame(Residue* R) : parent(R), aa(SeqTools::aaToIdx(R->getName())) {defineFrame(R);}
 
-        residueFrame frameRelativeToOther(residueFrame* other);
-
-        const CartesianPoint& getPosition() {return position;}
-        const sphericalCoordinate& getOrientation() {return orientation;}
-
-        // CartesianPoint getUPos() {return position+u;}
-        // CartesianPoint getBPos() {return position+b;}
-        // CartesianPoint getNPos() {return position+n;}
-
-        CartesianPoint getNPos() {return getO()+getX();}
-        CartesianPoint getBPos() {return getO()+getY();}
-        CartesianPoint getUPos() {return getO()+getZ();}
+        residueFrame* frameRelativeToOther(const residueFrame& other);
         
+        CartesianPoint getXPos() {return getO()+getX();}
+        CartesianPoint getYPos() {return getO()+getY();}
+        CartesianPoint getZPos() {return getO()+getZ();}
 
         Residue* getParent() {return parent;}
+        res_t getAAIdx() {return aa;}
+
+        void setAAIdx(res_t _aa) {aa = _aa;}
+
+        void writeToFile(string name, fstream& out);
 
     protected:
         void defineFrame(Residue* R);
 
     private:
-        CartesianPoint position;
-        sphericalCoordinate orientation;
-
-        //vectors storing orientation info
-        CartesianPoint u;
-        CartesianPoint b;
-        CartesianPoint n;
-
         Residue* parent = nullptr;
+        res_t aa = SeqTools::unknownIdx();
 };
 
 class augmentedStructure : public Structure {
@@ -102,5 +53,55 @@ class augmentedStructure : public Structure {
     private:
         vector<residueFrame> frames;
 };
+
+
+// struct interactingRes
+// {
+//     interactingRes(int _target, int _res_i, int _res_j) : target(_target), res_i(_res_i), res_j(_res_j) {}
+//     int target;
+//     int res_i;
+//     int res_j;
+// };
+
+// class frameDB {
+//     public:
+//         frameDB(string _frameDBPath, bool _read = true) : frameDBPath(_frameDBPath), readMode(_read) {
+//             cout << "read mode: " << readMode << "\tfrom file: " << frameDBPath << endl;
+//             openFileStream();
+//         }
+
+//         frameDB(const frameDB& other) : frameDBPath(other.frameDBPath), readMode(other.readMode) {
+//             MstUtils::assert(other.readMode, "Copying write-only frameDB file not supported");
+//             cout << "Opening file stream for copy of frame DB: " << frameDBPath << endl;
+//             openFileStream();
+//         }
+
+//         ~frameDB() {
+//             if ((!readMode)&&(frameAdded)) MstUtils::writeBin(fs,'E');
+//             fs.close();
+//         }
+
+//         bool hasNext();
+//         void skip();
+//         void reset();
+
+//         pair<residueFrame*,interactingRes> next();
+
+//         void appendFrame(residueFrame* rF, const interactingRes &interactionData);
+
+//     protected:
+//         void openFileStream();
+//         pair<residueFrame*,interactingRes> readNextFileSection();
+
+//     private:
+//         string frameDBPath = "";
+//         int version = 1;
+//         bool readMode = true;
+//         bool frameAdded = false;
+
+//         fstream fs;
+// };
+
+
 
 #endif
