@@ -1,16 +1,6 @@
 #include "residuecontact.h"
 
-// void checkVDWRadii::processStructure(Structure& S, bool strict) {
-//     set<Atom*> toDelete;
-//     for (Residue* R : S.getResidues()) {
-//         vector<Atom*> atoms = R->getAtoms();
-//         for (Atom* A : atoms) {
-//             string name = getName(A);
-//             if (name.empty()) toDelete.insert(A);
-//             A->setName(name);
-//         }
-//     }
-// }
+/* --- --- --- --- --- checkVDWRadii --- --- --- --- --- */
 
 mstreal checkVDWRadii::maxRadius() {
     return max_radius;
@@ -82,6 +72,27 @@ string checkVDWRadii::getName(const Atom* A, bool strict) {
     return "";
 }
 
+/* --- --- --- --- --- vdwContacts --- --- --- --- --- */
+
+void vdwContacts::setResidues(vector<Chain*> resIChains, vector<Chain*> resJChains) {
+    vector<Residue*> resIVec, resJVec;
+    for (Chain* C : resIChains) {
+        vector<Residue*> cRes = C->getResidues();
+        resIVec.insert(resIVec.end(),cRes.begin(),cRes.end());
+    }
+    for (Chain* C : resJChains) {
+        vector<Residue*> cRes = C->getResidues();
+        resJVec.insert(resJVec.end(),cRes.begin(),cRes.end());
+    }
+    setResidues(resIVec,resJVec);
+}
+
+void vdwContacts::setResidues(vector<Residue*> resIVec, vector<Residue*> resJVec) {
+    resISet = set<Residue*>(resIVec.begin(),resIVec.end());
+    resJSet = set<Residue*>(resJVec.begin(),resJVec.end());
+    cout << "set I has " << resISet.size() << " and set J has " << resJSet.size() << endl;
+}
+
 vdwContacts::vdwContacts(const Structure& _S) : S(_S) {
     // Construct proximity search object
     allAtoms = S.getAtoms();
@@ -94,48 +105,52 @@ vdwContacts::vdwContacts(const Structure& _S) : S(_S) {
     }
 }
 
-set<Residue*> vdwContacts::getInteractingRes(Residue* R) {
-    // Check if map is already populated
-    if (interacting.count(R) == 1) return interacting[R];
-    // If not, compute the contacts anew
-    vector<Atom*> resAtoms = R->getAtoms();
+set<Residue*> vdwContacts::getInteractingRes(Residue* Ri) {
+    vector<Atom*> resAtoms = Ri->getAtoms();
     set<Residue*> contacts;
-    for (Atom* A : resAtoms) {
-        mstreal A_maxRadius_sum = vdwR.getRadius(A,strictAtomName) + vdwR.maxRadius();
-        vector<int> atomsToCheck = allAtomsPS.getPointsWithin(A->getCoor(), 0, A_maxRadius_sum);
+    for (Atom* Ai : resAtoms) {
+        mstreal A_maxRadius_sum = vdwR.getRadius(Ai,strictAtomName) + vdwR.maxRadius();
+        vector<int> atomsToCheck = allAtomsPS.getPointsWithin(Ai->getCoor(), 0, A_maxRadius_sum);
         for (int atomIdx : atomsToCheck) {
-            Atom* A_other = allAtoms[atomIdx];
-            Residue* R_other = A_other->getResidue();
+            Atom* Aj = allAtoms[atomIdx];
+            Residue* Rj = Aj->getResidue();
             
-            // Check if should ignore, since in the same residue
-            if (R == R_other) {
-                continue;
-            }
-            
-            // Check if should ignore, since too close in chain
-            if (R->getParent()==R_other->getParent()) {
-                int R_i = R->getResidueIndexInChain();
-                int R_j = R_other->getResidueIndexInChain();
-                int distance = abs(R_i-R_j);
-                if (distance <= ignoreDistance) {
-                    continue;
-                }
-            }
+            if (!isContact(Ri,Rj)) continue;
             
             // Check if contacting, given the Aj radius
-            atomInteractionType intType = vdwR.interactionType(A,A_other);
+            atomInteractionType intType = vdwR.interactionType(Ai,Aj);
             if (intType == ATOMCONTACT) {
-                contacts.insert(R_other);
+                contacts.insert(Rj);
             }
         }
     }
     return contacts;
 }
 
+vector<pair<Residue*,Residue*>> vdwContacts::getInteractingRes() {
+    vector<pair<Residue*,Residue*>> result;
+    int numContacts = 0;
+    for (Residue* Ri : resISet) {
+        set<Residue*> interactingRes;
+        for (Residue* Rj : getInteractingRes(Ri)) {
+            interactingRes.insert(Rj);
+            numContacts++;
+        }
+        for (Residue* Rj : interactingRes) {
+            result.emplace_back(pair<Residue*,Residue*>(Ri,Rj));
+        }
+    }
+    // if (verbose) cout << "In total, selected residues have " << numContacts << " VDW contacts" << endl;
+    return result;
+}
+
 map<int,set<int> > vdwContacts::getAllInteractingRes(bool verbose) {
     map<int,set<int> > allInteracting;
     int numContacts = 0;
     for (Residue* Ri : S.getResidues()) {
+        // Check if map is already populated
+        if (interacting.count(Ri) == 1) continue;
+        // If not, compute the contacts anew
         set<int> interactingResIdx;
         for (Residue* Rj : getInteractingRes(Ri)) {
             interactingResIdx.insert(Rj->getResidueIndex());
@@ -145,4 +160,22 @@ map<int,set<int> > vdwContacts::getAllInteractingRes(bool verbose) {
     }
     if (verbose) cout << "In total, structure has " << numContacts << " VDW contacts" << endl;
     return allInteracting;
+}
+
+bool vdwContacts::isContact(Residue* Ri, Residue* Rj) {
+    // Check if should ignore, since in the same residue
+    if (Ri == Rj) return false;
+
+    // Check that both residues are in the sets under consideration
+    if (resISet.find(Ri) == resISet.end()) return false;
+    if (resJSet.find(Rj) == resJSet.end()) return false;
+
+    // Check that residues are not too close in the chain
+    if (Ri->getParent() == Ri->getParent()) {
+        int Ri_pos = Ri->getResidueIndexInChain();
+        int Rj_pos = Rj->getResidueIndexInChain();
+        bool tooClose = (abs(Ri_pos-Rj_pos) <= ignoreDistance);
+        if (tooClose) return false;
+    }
+    return true;
 }

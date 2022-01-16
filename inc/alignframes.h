@@ -83,6 +83,8 @@ private:
     int res_j = -1;
     res_t res_i_aa = SeqTools::unknownIdx();
     res_t res_j_aa = SeqTools::unknownIdx();
+
+    friend class proteinFrameDB;
 };
 
 class alignInteractingFrames
@@ -99,6 +101,7 @@ public:
 
     void setAA(string resName);
     void setRefFrame(const residueFrame &_rFrame) { refFrame = _rFrame; }
+    void setHomThresh(mstreal _homThresh) {homologyThreshold = _homThresh;}
 
     void findMobileFrames();
 
@@ -108,18 +111,32 @@ public:
     Structure *getAlignedInteractingRes(mobileFrame* frame);
     void writeAlignedInteractingResToPDB(string pdbPath, mstreal subsampleRate = 0.01);
     void writeMobileFramesToBin(frameDB* frameBin);
+    void writeInteractionData(string pathPrefix);
 
-    mobileFrame* getInteractingResidueFrame(int i);
+    // mobileFrame* getInteractingResidueFrame(int i);
     // void getAllInteractingResidueFrames();
 
     proteinFrameDB& getDB() {return db;}
+
+    bool isQueryHomologousToMatchInDB(Residue* query, Residue* reference, mobileFrame* mFrame);
 
 protected:
     Structure *changeFrameToRef(Structure* interactingResiduePair, mobileFrame* frame);
     Structure *constructStructureFromResiduePair(Residue *Ri, Residue *Rj, mobileFrame* frame);
 
+    /**
+     * @brief Define a window around each residue, extract sequence, and find the identity
+     * 
+     * @param R1 
+     * @param R2 
+     * @return pair<int,int> The total sequence length and number of identical residues, respectively
+     */
+    pair<int,int> getSequenceIdentity(Residue* R1, Residue* R2);
+
 private:
     proteinFrameDB db;
+    int windowSize = 30;
+    mstreal homologyThreshold = 0.6;
 
     map<string, string> aaConversions;
 
@@ -130,6 +147,8 @@ private:
     vector<mobileFrame*> allInteractingFrames;
 
     Transform tf;
+
+    map<res_t,map<int,int> > interactionData;
 };
 
 class frameDB {
@@ -155,6 +174,7 @@ class frameDB {
         void reset();
 
         mobileFrame* next();
+        vector<mobileFrame*> loadAllFrames();
 
         void appendFrame(mobileFrame* rF);
 

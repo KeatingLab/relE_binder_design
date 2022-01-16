@@ -70,10 +70,24 @@ class frameTable {
     public:
         frameTable(vector<mstreal> _bbox, mstreal distIncrement, mstreal numRotBins) : posHasher(_bbox,distIncrement), rotHasher(numRotBins) {}
 
+        ~frameTable() {
+            for (mobileFrame* frame : allFrames) delete frame;
+        }
+
         void insertFrame(mobileFrame* frame);
 
+        /**
+         * @brief finds all frames satisfying search criteria w.r.t. query
+         * 
+         * @param frame the query
+         * @param distCut the distance cutoff in angstroms
+         * @param angCut the orientation cutoff in degrees
+         * @return int 
+         */
         int countSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut);
         set<mobileFrame*> findSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut);
+
+        void static printFrameInfo(Frame* frame);
 
     protected:
         set<mobileFrame*> verify(Frame* queryFrame, const vector<mobileFrame*>& distNeighbors, mstreal distCut, const vector<mobileFrame*>& rotNeighbors, mstreal angCut);
@@ -82,6 +96,7 @@ class frameTable {
         positionHasher posHasher;
         orientationHasher rotHasher;
 
+        vector<mobileFrame*> allFrames;
         unordered_map<int,vector<mobileFrame*> > posMap;
         unordered_map<int,vector<mobileFrame*> > rotMap;
 };

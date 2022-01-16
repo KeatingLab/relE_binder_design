@@ -33,6 +33,8 @@ void proteinFrameDB::addTarget(const augmentedStructure &S)
 
 void proteinFrameDB::readDBFile(string dbPath)
 {
+    cout << "Reading the DB..." << endl;
+    MstTimer timer; timer.start();
     fstream ifs;
     MstUtils::openFile(ifs, dbPath, fstream::in | fstream::binary, "alignInteractingFrames::readDBFile");
     char sect;
@@ -89,7 +91,8 @@ void proteinFrameDB::readDBFile(string dbPath)
         ti++;
     }
     ifs.close();
-    cout << "Loaded database with " << targets.size() << " structure" << endl;
+    timer.stop();
+    cout << "Loaded database with " << targets.size() << " structures in " << timer.getDuration() << " s" << endl;
 }
 
 void proteinFrameDB::writeDBFile(string dbPath)
@@ -137,22 +140,22 @@ void alignInteractingFrames::setAA(string resName) {
     aaName = SeqTools::idxToTriple(aa);
 }
 
-void alignInteractingFrames::findMobileFrames()
-{
+void alignInteractingFrames::findMobileFrames() {
     if (aa == SeqTools::unknownIdx())
         MstUtils::error("Must set amino acid before finding interacting residues", "alignInteractingFrames::findInteractingRes");
     allInteractingFrames.clear();
-    for (int target_idx = 0; target_idx < db.numTargets(); target_idx++)
-    {
+    interactionData[aa] = map<int,int>();
+    map<int,int>& interactionDataForAA = interactionData[aa];
+    for (int i = 0; i <= 30; i++) interactionDataForAA[i] = 0;
+    for (int target_idx = 0; target_idx < db.numTargets(); target_idx++) {
         const augmentedStructure& aS = db.getTarget(target_idx);
-        for (int res_i = 0; res_i < aS.residueSize(); res_i++)
-        {
+        for (int res_i = 0; res_i < aS.residueSize(); res_i++) {
             res_t res_i_aa = SeqTools::aaToIdx(aS.getResidue(res_i).getName());
-            if (res_i_aa != aa)
-            {
+            if (res_i_aa != aa) {
                 continue;
             }
             const set<int> &interacting_res = db.getContacts(target_idx,res_i);
+            interactionDataForAA[interacting_res.size()]++;
             for (int res_j : interacting_res) {
                 mobileFrame* frame = new mobileFrame(&aS.getResidue(res_j), target_idx, res_i, res_j, aa);
                 residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
@@ -209,6 +212,37 @@ void alignInteractingFrames::writeMobileFramesToBin(frameDB* frameBin) {
     }
 }
 
+void alignInteractingFrames::writeInteractionData(string pathPrefix) {
+    fstream info_out;
+    string path = pathPrefix + "_interactionData.tsv";
+    MstUtils::openFile(info_out,path,fstream::out,"alignInteractingFrames::writeInteractionData");
+    info_out << "aminoAcidType\tnumLongRangeContacts\tcount" << endl;
+
+    for (auto it_aa : interactionData) {
+        for (auto it_cont : it_aa.second) {
+            info_out << SeqTools::idxToTriple(it_aa.first) << "\t";
+            info_out << it_cont.first << "\t";
+            info_out << it_cont.second;
+            info_out << endl;
+        }
+    }
+    info_out.close();
+}
+
+bool alignInteractingFrames::isQueryHomologousToMatchInDB(Residue* query, Residue* reference, mobileFrame* mFrame) {
+    Residue* qRi = query;
+    Residue* qRj = reference;
+    Residue* mRi = db.getResidue(mFrame->getTarget(),mFrame->getResI());
+    Residue* mRj = db.getResidue(mFrame->getTarget(),mFrame->getResJ());
+
+    pair<int,int> Ri_identity = getSequenceIdentity(qRi,mRi);
+    pair<int,int> Rj_identity = getSequenceIdentity(qRj,mRj);
+
+    mstreal seqID = mstreal(Ri_identity.second + Rj_identity.second) / mstreal(Ri_identity.first + Rj_identity.first);
+    // cout << "seqID: " << seqID << " over " << (Ri_identity.first + Rj_identity.first) << " residues" << endl;
+    return seqID >= homologyThreshold;
+}
+
 Structure *alignInteractingFrames::changeFrameToRef(Structure* interactingResiduePair, mobileFrame* frame) {
     // get the transformation that aligns residue i to the reference frame
     residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
@@ -237,6 +271,35 @@ Structure *alignInteractingFrames::constructStructureFromResiduePair(Residue *Ri
     string name = frame->getName();
     interactingResiduePair->setName(name);
     return interactingResiduePair;
+}
+
+pair<int,int> alignInteractingFrames::getSequenceIdentity(Residue* R1, Residue* R2) {
+    Chain* R1Chain = R1->getChain();
+    Chain* R2Chain = R2->getChain();
+
+    if ((R1Chain == NULL)||(R1Chain == NULL)) MstUtils::error("Somehow residues in the database have no parent chains","alignInteractingFrames::getSequenceIdentity");
+
+    int R1Index = R1->getResidueIndexInChain();
+    int R2Index = R2->getResidueIndexInChain();
+
+    // Adjust residue indices so that R1 and R2 have idx 0, so that ranges can be compared
+    int R1_min = max(R1Index-windowSize,0) - R1Index;
+    int R1_max = min(R1Index+windowSize,R1Chain->residueSize()-1) - R1Index;
+    int R2_min = max(R2Index-windowSize,0) - R2Index;
+    int R2_max = min(R2Index+windowSize,R2Chain->residueSize()-1) - R2Index;
+
+    int windowMin = max(R1_min,R2_min);
+    int windowMax = min(R1_max,R2_max);
+
+    // Extract the sequence windows from the complete chain sequence
+    Sequence R1ChainSeq(*R1Chain);
+    Sequence R2ChainSeq(*R2Chain);
+
+    Sequence R1WindowSeq = R1ChainSeq.extractRange(R1Index+windowMin,R1Index+windowMax);
+    Sequence R2WindowSeq = R2ChainSeq.extractRange(R2Index+windowMin,R2Index+windowMax);
+
+    MstUtils::assert((R1WindowSeq.length()==R1WindowSeq.length()),"Sequences must be the same length","alignInteractingFrames::getSequenceIdentity");
+    return pair<int,int>(R1WindowSeq.length(),SeqTools::sequenceIdentity(R1WindowSeq,R2WindowSeq));
 }
 
 /* --- --- --- --- --- mobileFrame --- --- --- --- --- */
@@ -314,6 +377,16 @@ void frameDB::reset() {
 mobileFrame* frameDB::next() {
     MstUtils::assert(readMode,"next not supported in write mode","frameDB::next");
     return readNextFileSection();
+}
+
+vector<mobileFrame*> frameDB::loadAllFrames() {
+    vector<mobileFrame*> loaded; 
+    reset();
+    while (hasNext()) {
+        mobileFrame* mF = next();
+        loaded.push_back(mF);
+    }
+    return loaded;
 }
 
 void frameDB::appendFrame(mobileFrame* frame) {

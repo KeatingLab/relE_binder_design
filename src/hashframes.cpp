@@ -191,7 +191,8 @@ void orientationHasher::getAngleBins(const anglesFromFrame& angles, int& alphaBi
 }
 
 int orientationHasher::hashAngleBins(const int& alphaBin, const int& betaBin, const int& gammaBin) {
-    if ((alphaBin < 0) || (betaBin < 0) || (gammaBin < 0)) MstUtils::error("Bin values invalid.","orientationHasher::hashAngleBins");
+    if ((alphaBin < 0) || (alphaBin >= numBins) || (betaBin < 0) || (betaBin >= numBins) || (gammaBin < 0) || (gammaBin >= numBins))
+     MstUtils::error("bin values invalid: "+MstUtils::toString(alphaBin)+","+MstUtils::toString(betaBin)+","+MstUtils::toString(gammaBin),"orientationHasher::hashAngleBins");
     /* Same idea as in the position hasher. The three angles still form a 3D space, which is now
     technically a 3-torus, but the fact that there is a discontinuity in the hashes doesn't matter
     as long as they're all unique. */
@@ -218,17 +219,23 @@ void orientationHasher::getAngleBinsRange(const anglesFromFrame& angles, mstreal
         int alphaBinStart = floor((alpha - cutoff) / increment);
         int alphaBinEnd = floor((alpha + cutoff) / increment);
         alphaBins.reserve(alphaBinEnd-alphaBinStart+1);
-        if (alphaBinEnd >= numBins) {
+        if (alphaBinStart < 0) {
+            for (int bin = alphaBinStart + numBins; bin < numBins; bin++) alphaBins.push_back(bin);
+            for (int bin = 0; bin <= alphaBinEnd; bin++) alphaBins.push_back(bin);
+        } else if (alphaBinEnd >= numBins) {
             // crosses discontinuity, add the segment of the circle before/after discontinuity separately
             for (int bin = alphaBinStart; bin < numBins; bin++) alphaBins.push_back(bin);
-            for (int bin = 0; bin < alphaBinEnd - numBins; bin++) alphaBins.push_back(bin);
+            for (int bin = 0; bin <= alphaBinEnd - numBins; bin++) alphaBins.push_back(bin);
         } else {
             for (int bin = alphaBinStart; bin <= alphaBinEnd; bin++) alphaBins.push_back(bin);
         }
         int betaBinStart = floor((beta - cutoff) / increment);
         int betaBinEnd = floor((beta + cutoff) / increment);
         betaBins.reserve(betaBinEnd-betaBinStart+1);
-        if (betaBinEnd >= numBins) {
+        if (betaBinStart < 0) {
+            for (int bin = betaBinStart + numBins; bin < numBins; bin++) betaBins.push_back(bin);
+            for (int bin = 0; bin <= betaBinEnd; bin++) betaBins.push_back(bin);
+        } else if (betaBinEnd >= numBins) {
             // crosses discontinuity, add the segment of the circle before/after discontinuity separately
             for (int bin = betaBinStart; bin < numBins; bin++) betaBins.push_back(bin);
             for (int bin = 0; bin <= betaBinEnd - numBins; bin++) betaBins.push_back(bin);
@@ -238,7 +245,10 @@ void orientationHasher::getAngleBinsRange(const anglesFromFrame& angles, mstreal
         int gammaBinStart = floor((gamma - cutoff) / increment);
         int gammaBinEnd = floor((gamma + cutoff) / increment);
         gammaBins.reserve(gammaBinEnd-gammaBinStart+1);
-        if (gammaBinEnd >= numBins) {
+        if (gammaBinStart < 0) {
+            for (int bin = gammaBinStart + numBins; bin < numBins; bin++) gammaBins.push_back(bin);
+            for (int bin = 0; bin <= gammaBinEnd; bin++) gammaBins.push_back(bin);
+        } else if (gammaBinEnd >= numBins) {
             // crosses discontinuity, add the segment of the circle before/after discontinuity separately
             for (int bin = gammaBinStart; bin < numBins; bin++) gammaBins.push_back(bin);
             for (int bin = 0; bin <= gammaBinEnd - numBins; bin++) gammaBins.push_back(bin);
@@ -253,6 +263,7 @@ void orientationHasher::getAngleBinsRange(const anglesFromFrame& angles, mstreal
 void frameTable::insertFrame(mobileFrame* frame) {
     int posHash = posHasher.hashFrame(frame);
     int rotHash = rotHasher.hashFrame(frame);
+    allFrames.push_back(frame);
     posMap[posHash].push_back(frame);
     rotMap[rotHash].push_back(frame);
 }
@@ -263,6 +274,8 @@ int frameTable::countSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut
 
 set<mobileFrame*> frameTable::findSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut) {
     mstreal radCut = 2*M_PI*angCut/(360.0); //rot hasher uses radians
+    cout << "Searching for matches to query frame: ";
+    printFrameInfo(frame);
     vector<int> posNeigbourHashes = posHasher.region(frame,distCut);
     vector<int> rotNeighborHashes = rotHasher.region(frame,radCut);
     vector<mobileFrame*> posNeighbors; vector<mobileFrame*> rotNeighbors;
@@ -300,4 +313,15 @@ set<mobileFrame*> frameTable::verify(Frame* queryFrame, const vector<mobileFrame
     // find the intersection of the two sets
     set_intersection(pos.begin(),pos.end(),rot.begin(),rot.end(),std::inserter(result,result.begin()));
     return result;
+}
+
+void frameTable::printFrameInfo(Frame* frame) {
+    anglesFromFrame angles(frame);
+    cout << "x: " << frame->getO()[0];
+    cout << "\ty: " << frame->getO()[1];
+    cout << "\tz: " << frame->getO()[2];
+    cout << "\talpha: " << 360*angles.getAlpha()/(2*M_PI);
+    cout << "\tbeta: " << 360*angles.getBeta()/(2*M_PI);
+    cout << "\tgamma: " << 360*angles.getGamma()/(2*M_PI);
+    cout << endl;
 }

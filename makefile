@@ -11,7 +11,7 @@ SASAOBJS = $(SASADIR)/src
 SASALIB = $(SASADIR)/src
 
 CC = g++
-CFLAGS = -std=c++11 -g -gdwarf-3 -O -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(INCL)
+CFLAGS = -std=c++11 -g3 -gdwarf-3 -O1 -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(INCL)
 MPICC = mpic++
 MPIFLAGS = -std=c++0x -O
 

@@ -20,6 +20,7 @@ class residueFrame : public Frame {
         res_t getAAIdx() {return aa;}
 
         void setAAIdx(res_t _aa) {aa = _aa;}
+        void setReferenceResidue(Residue* reference);
 
         void writeToFile(string name, fstream& out);
 
@@ -33,7 +34,7 @@ class residueFrame : public Frame {
 
 class augmentedStructure : public Structure {
     public:
-        augmentedStructure(string structure_path) : Structure(structure_path) {defineFrames();}
+        augmentedStructure(string structure_path) : Structure(structure_path,"SKIPHETERO") {defineFrames();}
         augmentedStructure(const Structure& S): Structure(S) {
               defineFrames();
         }
@@ -53,55 +54,5 @@ class augmentedStructure : public Structure {
     private:
         vector<residueFrame> frames;
 };
-
-
-// struct interactingRes
-// {
-//     interactingRes(int _target, int _res_i, int _res_j) : target(_target), res_i(_res_i), res_j(_res_j) {}
-//     int target;
-//     int res_i;
-//     int res_j;
-// };
-
-// class frameDB {
-//     public:
-//         frameDB(string _frameDBPath, bool _read = true) : frameDBPath(_frameDBPath), readMode(_read) {
-//             cout << "read mode: " << readMode << "\tfrom file: " << frameDBPath << endl;
-//             openFileStream();
-//         }
-
-//         frameDB(const frameDB& other) : frameDBPath(other.frameDBPath), readMode(other.readMode) {
-//             MstUtils::assert(other.readMode, "Copying write-only frameDB file not supported");
-//             cout << "Opening file stream for copy of frame DB: " << frameDBPath << endl;
-//             openFileStream();
-//         }
-
-//         ~frameDB() {
-//             if ((!readMode)&&(frameAdded)) MstUtils::writeBin(fs,'E');
-//             fs.close();
-//         }
-
-//         bool hasNext();
-//         void skip();
-//         void reset();
-
-//         pair<residueFrame*,interactingRes> next();
-
-//         void appendFrame(residueFrame* rF, const interactingRes &interactionData);
-
-//     protected:
-//         void openFileStream();
-//         pair<residueFrame*,interactingRes> readNextFileSection();
-
-//     private:
-//         string frameDBPath = "";
-//         int version = 1;
-//         bool readMode = true;
-//         bool frameAdded = false;
-
-//         fstream fs;
-// };
-
-
 
 #endif

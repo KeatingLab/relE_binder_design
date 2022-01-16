@@ -47,12 +47,18 @@ class vdwContacts {
      */
 public:
     vdwContacts(const Structure& _S);
+
+    void setResidues(vector<Chain*> resIChains, vector<Chain*> resJChains);
+    void setResidues(vector<Residue*> resIVec, vector<Residue*> resJVec);
     
-    set<Residue*> getInteractingRes(Residue* R);
+    set<Residue*> getInteractingRes(Residue* Ri);
+
+    vector<pair<Residue*,Residue*>> getInteractingRes();
 
     map<int,set<int> > getAllInteractingRes(bool verbose = false);
     
 protected:
+    bool isContact(Residue* Ri, Residue* Rj);
     
 private:
     const Structure& S;
@@ -61,6 +67,8 @@ private:
     
     checkVDWRadii vdwR;
         
+    set<Residue*> resISet;
+    set<Residue*> resJSet;
     map<Residue*,set<Residue*>> interacting;
     
     int ignoreDistance = 8; //interacting residues this close in the chain will be ignored

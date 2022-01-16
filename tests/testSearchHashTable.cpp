@@ -39,17 +39,17 @@ int main(int argc, char *argv[]) {
     cout << "Selected residues: " << query_res[0]->getChainID() << query_res[0]->getNum() << " and " << query_res[1]->getChainID() << query_res[1]->getNum() << endl;
     residueFrame* frameI = S.getResidueFrame(query_res[0]->getResidueIndex());
     residueFrame* frameJ = S.getResidueFrame(query_res[1]->getResidueIndex());
-    // residueFrame* query = frameJ->frameRelativeToOther(*frameI,out);
+    residueFrame* query = frameJ->frameRelativeToOther(*frameI);
 
-    // find the transformation between other and the global reference frame
-    Transform other_to_ref = TransformFactory::switchFrames(Frame(), *frameI);
+    // // find the transformation between other and the global reference frame
+    // Transform other_to_ref = TransformFactory::switchFrames(Frame(), *frameI);
 
-    // apply the transformation to this frame and return
-    residueFrame* query = new residueFrame(*frameJ);
-    other_to_ref.apply(*query);
-    Structure transformedStructure(S);
-    other_to_ref.apply(transformedStructure);
-    transformedStructure.writePDB("transformedStructure.pdb");
+    // // apply the transformation to this frame and return
+    // residueFrame* query = new residueFrame(*frameJ);
+    // other_to_ref.apply(*query);
+    // Structure transformedStructure(S);
+    // other_to_ref.apply(transformedStructure);
+    // transformedStructure.writePDB("transformedStructure.pdb");
     
     residueFrame ref;
 
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
     original_res_pair.writePDB("original_res_pair.pdb");
     
     //write residue pair after transformation
-    other_to_ref.apply(original_res_pair);
+    // other_to_ref.apply(original_res_pair);
     original_res_pair.writePDB("original_res_pair_transformed.pdb");
 
     res_t resI_aa = SeqTools::aaToIdx(query_res[0]->getName());
