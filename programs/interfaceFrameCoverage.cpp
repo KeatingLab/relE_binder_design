@@ -42,39 +42,35 @@ int main(int argc, char *argv[])
     cout << endl;
 
     // initialize the scoring class
-    interfaceScorer scorer(mobileFrameDB,posCut,oriCut);
+    interfaceSearch interfaceCoverage(mobileFrameDB,posCut,oriCut);
     alignInteractingFrames alignF(protDB);
 
-    augmentedStructure complex(pdbPath);
+    augmentedStructure complex(pdbPath,true);
     string complexName = MstSys::splitPath(complex.getName(),1);
     complex.setName(complexName);
-    scorer.loadStructure(&complex,targetChainIDs,binderChainIDs);
+    interfaceCoverage.loadStructure(&complex,targetChainIDs,binderChainIDs);
     
     // score the interface
     cout << "Score the interface..." << endl;
-    vdwContacts C(complex);
-    C.setResidues(scorer.getTargetChains(),scorer.getBinderChains());
+    vdwContacts C(interfaceCoverage.getTargetChains(),interfaceCoverage.getBinderChains());
     vector<pair<Residue*,Residue*>> contacts = C.getInteractingRes();
-    // for (auto pair : contacts) {
-    //     cout << pair.first->getChainID() << pair.first->getNum() << " ";
-    //     cout << pair.second->getChainID() << pair.second->getNum() << endl;
-    // }
+    interfaceCoverage.setInterface(contacts);
     if (homThresh > 0) {
         alignF.setHomThresh(homThresh);
-        scorer.scoreInterface(contacts,&alignF);
+        interfaceCoverage.searchInterface(&alignF);
     } else {
-        scorer.scoreInterface(contacts);
+        interfaceCoverage.searchInterface();
     }
 
     // write the score counts out to a file
     cout << "Write score counts to file..." << endl;
-    scorer.writeContactScoresToFile(complexName);
-    scorer.writeContactMatchesToFile(complexName);
-    scorer.writeContactPropertyToFile(complexName, interfaceScorer::property::COVERAGE);
+    interfaceCoverage.writeContactScoresToFile(complexName);
+    interfaceCoverage.writeContactMatchesToFile(complexName);
+    interfaceCoverage.writeContactPropertyToFile(complexName);
 
     // write the match structures
     cout << "Write the match structures..." << endl;
-    scorer.writeMatchStructures(complexName+"_match_structures.pdb",alignF);
+    interfaceCoverage.writeMatchStructures(complexName+"_match_structures.pdb",alignF);
 
     cout << "Done" << endl;
     return 0;

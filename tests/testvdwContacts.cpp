@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
     
     Structure S(op.getString("p"));
     string structure_name = MstSys::splitPath(S.getName(),1);
-    vdwContacts vdwC(S);
+    vdwContacts vdwC(S.getResidues());
     
     fstream out;
     MstUtils::openFile(out, structure_name+"_vdwContacts.csv",fstream::out);
@@ -20,6 +20,7 @@ int main(int argc, char *argv[]) {
     fstream cont_out;
     MstUtils::openFile(cont_out, structure_name+"_drawcontacts.tsv",fstream::out);
     
+    int count = 0;
     for (Residue* Ri : S.getResidues()) {
 //        cout << "res: " << R->getNum() << endl;
         set<Residue*> contactingResidues = vdwC.getInteractingRes(Ri);
@@ -33,8 +34,11 @@ int main(int argc, char *argv[]) {
             cont_out << Rj->getChainID() << Rj->getNum() << "\t";
             cont_out << 1;
             cont_out << endl;
+
+            count++;
         }
     }
+    cout << "There are " << count << " vdw contacts" << endl;
     out.close();
     cont_out.close();
 

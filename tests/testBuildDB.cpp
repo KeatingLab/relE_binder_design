@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
     
     Structure S(op.getString("p"));
     string structure_name = MstSys::splitPath(S.getName(),1);
-    vdwContacts vdwC(S);
+    vdwContacts vdwC(S.getResidues());
 
     alignInteractingFrames *alignFPointer = new alignInteractingFrames;
     proteinFrameDB& db = alignFPointer->getDB();

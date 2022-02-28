@@ -37,6 +37,7 @@ void proteinFrameDB::readDBFile(string dbPath)
     MstTimer timer; timer.start();
     fstream ifs;
     MstUtils::openFile(ifs, dbPath, fstream::in | fstream::binary, "alignInteractingFrames::readDBFile");
+    
     char sect;
     string name;
     int ver = 0;
@@ -61,7 +62,7 @@ void proteinFrameDB::readDBFile(string dbPath)
         while (ifs.peek() != EOF)
         {
             MstUtils::readBin(ifs, sect);
-            if (sect == 'I')
+            if (sect == 'B')
             {
                 MstUtils::readBin(ifs, name); // ignore name for now, but could use in the future
                 map<int, set<int>> &vals = vdwContacts[ti];
@@ -103,14 +104,14 @@ void proteinFrameDB::writeDBFile(string dbPath)
     MstUtils::writeBin(ofs, (int)version); // format version
     for (int ti = 0; ti < targets.size(); ti++)
     {
-        if (targets[ti] == NULL) MstUtils::error("cannot write a database, in which full structures are not populated", "alignInteractingFrames::writeDBFile");
+        if (targets[ti] == NULL) MstUtils::error("Cannot write a database in which full structures are not populated", "alignInteractingFrames::writeDBFile");
         MstUtils::writeBin(ofs, 'S'); // marks the start of a structure section
         targets[ti]->writeData(ofs);
 
         if (vdwContacts.find(ti) != vdwContacts.end())
         {
             map<int, set<int>> &vals = vdwContacts[ti];
-            MstUtils::writeBin(ofs, 'I'); // marks the start of a residue pair interaction property section
+            MstUtils::writeBin(ofs, 'B'); // marks the start of a residue pair interaction property section
             MstUtils::writeBin(ofs, (string)"vdw");
             MstUtils::writeBin(ofs, (int)vals.size());
             for (auto i = vals.begin(); i != vals.end(); ++i)

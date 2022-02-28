@@ -28,10 +28,16 @@ void residueFrame::defineFrame(Residue* R) {
     n = the unit vector normal to the plane formed between N - Ca and C - Ca
     */
 
-    bool strict = true;
-    CartesianPoint N = R->findAtom("N",strict);
-    CartesianPoint Ca = R->findAtom("CA",strict);
-    CartesianPoint C = R->findAtom("C",strict);
+    bool strict = false;
+    Atom* N_atom = R->findAtom("N",strict);
+    Atom* Ca_atom = R->findAtom("CA",strict);
+    Atom* C_atom = R->findAtom("C",strict);
+    if ((N_atom == NULL)||(Ca_atom == NULL)||(C_atom == NULL)) {
+        MstUtils::error("Residue "+R->getChainID()+MstUtils::toString(R->getNum())+" is missing one or more of N, Ca, C atoms","residueFrame::defineFrame");
+    }
+    CartesianPoint N = N_atom->getCoor();
+    CartesianPoint Ca = Ca_atom->getCoor();
+    CartesianPoint C = C_atom->getCoor();
 
     CartesianPoint N_to_Ca = (Ca-N);
     CartesianPoint Ca_to_C = (C-Ca);

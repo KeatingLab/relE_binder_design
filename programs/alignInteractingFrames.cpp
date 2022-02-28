@@ -4,6 +4,7 @@
 #include "alignframes.h"
 #include "residuecontact.h"
 #include "residueframe.h"
+#include "utilities.h"
 
 #include <chrono>
 
@@ -22,7 +23,7 @@ int main(int argc, char *argv[])
     string proteinDBPath = op.getString("db");
     if (op.isGiven("pdb")) {
         Structure S(op.getString("pdb"));
-        vdwContacts C(S);
+        vdwContacts C(S.getResidues());
         proteinFrameDB protDB;
         protDB.addTarget(S);
         protDB.setVDWContacts(0,C.getAllInteractingRes());
@@ -37,11 +38,7 @@ int main(int argc, char *argv[])
     bool read = false;
     frameDB* frameBin = new frameDB(mobileFrameDBPath,read);
 
-    vector<string> aaTypes = {"ALA","ARG","ASN","ASP",
-                             "CYS","GLN","GLU","GLY",
-                             "HIS","ILE","LEU","LYS",
-                             "MET","PHE","PRO","SER",
-                             "THR","TRP","TYR","VAL"};
+    set<string> aaTypes = SeqToolsExtension::getAANames();
 
     for (string aa : aaTypes) {
         cout << "amino acid: " << aa << endl;

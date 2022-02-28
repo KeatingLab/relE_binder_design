@@ -8,21 +8,60 @@
 #include "msttransforms.h"
 
 #include "alignframes.h"
+#include "residuecontact.h"
 #include "residueframe.h"
+
+class boundingBox {
+    public:
+        void update(vector<mobileFrame*> frames);
+        void update(Frame* frame);
+        void update(const CartesianPoint& point);
+
+        bool isWithinBounds(Frame* frame, mstreal pad = 0.0) const;
+        bool isWithinBounds(Atom* A, mstreal pad = 0.0) const;
+        bool isWithinBounds(const CartesianPoint& point, mstreal pad = 0.0) const;
+
+        void printBounds();
+
+        mstreal getXMin() const {return xMin;}
+        mstreal getXMax() const {return xMax;}
+        mstreal getYMin() const {return yMin;}
+        mstreal getYMax() const {return yMax;}
+        mstreal getZMin() const {return zMin;}
+        mstreal getZMax() const {return zMax;}
+
+        mstreal getXWidth() const {return xMax-xMin;}
+        mstreal getYWidth() const {return yMax-yMin;}
+        mstreal getZWidth() const {return zMax-zMin;}
+    private:
+        mstreal xMin = std::numeric_limits<double>::max();
+        mstreal xMax = std::numeric_limits<double>::min();
+        mstreal yMin = std::numeric_limits<double>::max();
+        mstreal yMax = std::numeric_limits<double>::min();
+        mstreal zMin = std::numeric_limits<double>::max();
+        mstreal zMax = std::numeric_limits<double>::min();
+};
 
 class positionHasher {
     public:
-        positionHasher(vector<mstreal> _bbox, mstreal _increment);
+        positionHasher(boundingBox _bbox, mstreal _increment);
 
         int hashFrame(Frame* frame);
+        int hashPoint(const CartesianPoint& point);
 
         vector<int> region(Frame* frame, mstreal cutoff);
+        vector<int> region(const CartesianPoint& point, mstreal cutoff);
 
-        static void updateBoundingBox(vector<mobileFrame*> frames, vector<mstreal>& bbox, bool verbose = false);
+        int getNumBins() {return numXBins * numYBins * numZBins;}
+
+        CartesianPoint getCenterCoordinatesOfBin(int hash);
+
+        const boundingBox& getBoundingBox() {return bbox;}
     private:
         int hashCoordinates(const int& xBin, const int& yBin, const int& zBin);
+        void getCoordinatesFromHash(int hash, int& xBin, int& yBin, int& zBin);
 
-        vector<mstreal> bbox;
+        boundingBox bbox;
         mstreal increment;
         int numXBins;
         int numYBins;
@@ -51,8 +90,8 @@ class orientationHasher {
         orientationHasher(int _numBins);
 
         int hashFrame(Frame* frame);
-
         vector<int> region(Frame* frame, mstreal cutoff);
+        int getNumBinsTotal() {return numBins * numBins * numBins;}
 
     protected:     
         int hashAngles(const anglesFromFrame& angles);
@@ -68,7 +107,10 @@ class orientationHasher {
 
 class frameTable {
     public:
-        frameTable(vector<mstreal> _bbox, mstreal distIncrement, mstreal numRotBins) : posHasher(_bbox,distIncrement), rotHasher(numRotBins) {}
+        frameTable(boundingBox _bbox, mstreal distIncrement, mstreal numRotBins) : posHasher(_bbox,distIncrement), rotHasher(numRotBins) {
+            posLookupTable.resize(posHasher.getNumBins());
+            rotLookupTable.resize(rotHasher.getNumBinsTotal());
+        }
 
         ~frameTable() {
             for (mobileFrame* frame : allFrames) delete frame;
@@ -84,21 +126,56 @@ class frameTable {
          * @param angCut the orientation cutoff in degrees
          * @return int 
          */
-        int countSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut);
-        set<mobileFrame*> findSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut);
+        int countSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut, vector<bool>* posHashToIgnore = nullptr);
+        set<mobileFrame*> findSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut, vector<bool>* posHashToIgnore = nullptr);
 
         void static printFrameInfo(Frame* frame);
+        const boundingBox& getBoundingBox() {return posHasher.getBoundingBox();}
+
+        int getNumFramesInPosBin(int hash) {return posLookupTable[hash].size();}
+        int getTotalNumFramesInTable() {return allFrames.size();}
 
     protected:
         set<mobileFrame*> verify(Frame* queryFrame, const vector<mobileFrame*>& distNeighbors, mstreal distCut, const vector<mobileFrame*>& rotNeighbors, mstreal angCut);
 
-    private:
         positionHasher posHasher;
         orientationHasher rotHasher;
+    private:
 
         vector<mobileFrame*> allFrames;
-        unordered_map<int,vector<mobileFrame*> > posMap;
-        unordered_map<int,vector<mobileFrame*> > rotMap;
+        vector<vector<mobileFrame*> > posLookupTable;
+        vector<vector<mobileFrame*> > rotLookupTable;
+};
+
+class frameProbability : public frameTable {
+    public:
+        frameProbability(boundingBox _bbox, mstreal distIncrement, mstreal numRotBins) : frameTable(_bbox, distIncrement, numRotBins) {}
+
+        void setSearchParams(mstreal _distCut, mstreal _oriCut) {
+            distCut = _distCut;
+            oriCut = _oriCut;
+        }
+
+        bool isTargetResidueDefined(int resIdx) {return targetResDefined.find(resIdx) != targetResDefined.end();}
+        void setTargetResidue(int resIdx, const Structure& target);
+
+        pair<int,int> findInteractingFrameProbability(Frame* frame, int targetResIdx);
+        vector<mstreal> findBinderResAADist(Frame* frame, int targetResIdx, mstreal pseudocount = 1.0);
+
+    protected:
+        vector<mstreal> aaDistFromMobileFrames(set<mobileFrame*> frames, mstreal pseudocount);
+
+    private:
+        map<int,vector<bool> > occupiedVolMap; // map[resIdx][voxelIdx]
+        map<int,int> normalizingConstant;  //map[resIdx]
+        set<int> targetResDefined;
+
+        mstreal distCut = 0.25;
+        mstreal oriCut = 15.0;
+
+        mstreal clashTol = 0.95;
+
+        checkVDWRadii atomVDWcheck;
 };
 
 #endif

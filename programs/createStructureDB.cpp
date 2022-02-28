@@ -1,6 +1,7 @@
 #include "mstrotlib.h"
 #include "msttypes.h"
 #include "mstoptions.h"
+#include "mstfasst.h"
 
 #include "alignframes.h"
 #include "residuecontact.h"
@@ -18,6 +19,7 @@ int main(int argc, char *argv[])
     op.addOption("vdw","If provided, will compute the van der Waals contacts between residues");
     op.addOption("o", "output database file name.", true);
     op.addOption("c", "clean up PDB files, so that only protein residues with enough of a backbone to support rotamer building survive.");
+    op.addOption("s", "split final PDB files into chains by connectivity. Among other things, this avoids \"gaps\" within chains (where missing residues would go)");
     op.addOption("batch", "an integer. If specified, instead of building the database will spread all the work across this many "
                           "jobs, writing corresponding batch files for submission to the cluster. Will also produce a file called "
                           "<out>.fin.sh (where <out> is the base of the name specified in --o), which is to be run after all jobs "
@@ -28,7 +30,7 @@ int main(int argc, char *argv[])
 
     if (!op.isGiven("batch"))
     {
-        proteinFrameDB DB;
+        proteinFrameDB frameDB;
         cout << "Reading structures..." << endl;
         if (op.isGiven("pL"))
         {
@@ -47,39 +49,43 @@ int main(int argc, char *argv[])
                     C.setName(P.getName());
                     P = C;
                 }
+                if (op.isGiven("s")) {
+                    P = P.reassignChainsByConnectivity();
+                    P.deleteShortChains();
+                }
                 if (P.residueSize() != 0)
-                    DB.addTarget(P);
+                    frameDB.addTarget(P);
                 else
                     cout << "skipping " << pdbFiles[i] << " as it ends up having no residues..." << endl;
             }
         }
         if (op.isGiven("db"))
         {
-            DB.readDBFile(op.getString("db"));
+            frameDB.readDBFile(op.getString("db"));
             // If adding to an existing DB, print what properties already exist within it
-            cout << "structures DB with " << DB.numTargets() << " frames" << endl;
+            cout << "structures DB with " << frameDB.numTargets() << " frames" << endl;
         }
         if (op.isGiven("dL"))
         {
             vector<string> dbFiles = MstUtils::fileToArray(op.getString("dL"));
             for (int i = 0; i < dbFiles.size(); i++)
             {
-                DB.readDBFile(dbFiles[i]);
+                frameDB.readDBFile(dbFiles[i]);
             }
         }
         if (op.isGiven("vdw")) {
             cout << "Computing vdW contacts..." << endl;
             // compute and add some properties
-            for (int ti = 0; ti < DB.numTargets(); ti++)
+            for (int ti = 0; ti < frameDB.numTargets(); ti++)
             {
-                cout << "\ttarget " << ti + 1 << "/" << DB.numTargets() << "..." << endl;
-                const augmentedStructure& P = DB.getTarget(ti);
-                vdwContacts vdwC(P);
+                cout << "\ttarget " << ti + 1 << "/" << frameDB.numTargets() << "..." << endl;
+                const augmentedStructure& P = frameDB.getTarget(ti);
+                vdwContacts vdwC(P.getResidues());
                 bool verbose = true;
-                DB.setVDWContacts(ti,vdwC.getAllInteractingRes(verbose));
+                frameDB.setVDWContacts(ti,vdwC.getAllInteractingRes(verbose));
             }
         }
-        DB.writeDBFile(op.getString("o")+".db");
+        frameDB.writeDBFile(op.getString("o")+".db");
     }
     else
     {

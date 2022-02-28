@@ -34,18 +34,42 @@ class residueFrame : public Frame {
 
 class augmentedStructure : public Structure {
     public:
-        augmentedStructure(string structure_path) : Structure(structure_path,"SKIPHETERO") {defineFrames();}
-        augmentedStructure(const Structure& S): Structure(S) {
-              defineFrames();
+        augmentedStructure() : Structure() {}
+
+        augmentedStructure(string structure_path, bool verbose = false) : Structure(structure_path,"SKIPHETERO") {
+            prepareStructure(verbose);
+        }
+
+        augmentedStructure(const Structure& S, bool verbose = false): Structure(S) {
+            prepareStructure(verbose);
         }
 
         residueFrame* getResidueFrame(int res_idx) {
             if ((res_idx < 0)||(res_idx >= frames.size())) MstUtils::error("Provided value "+MstUtils::toString(res_idx)+" is out of range: (0,"+MstUtils::toString(frames.size()-1),"residueFrame::getResidueFrame");
-            return &frames[res_idx];
+            return &(frames[res_idx]);
         }
 
         void writeToFile(string path_prefix);
     protected:
+        void prepareStructure(bool verbose = false) {
+            defineFrames();
+
+            // strip hydrogen atoms
+            int count = 0;
+            for (Residue* R : getResidues()) {
+                for (int i = 0; i < R->atomSize(); i++) {
+                    Atom* A = &R->getAtom(i);
+                    string atomName = A->getName();
+                    if (atomName.empty()) MstUtils::error("Atom from residue "+R->getChainID()+MstUtils::toString(R->getNum())+" has no name","augmentedStructure::prepareStructure");
+                    if (atomName.at(0) == 'H') {
+                        R->deleteAtom(i);
+                        count++;
+                    }
+                }
+            }
+            if (verbose) cout << "Deleted " << count << " hydrogen atoms" << endl;
+        }
+
         void defineFrames() {
             for (Residue* R : getResidues()) {
                 frames.emplace_back(residueFrame(R));

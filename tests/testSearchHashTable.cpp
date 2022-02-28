@@ -82,9 +82,9 @@ int main(int argc, char *argv[]) {
     cout << "Loaded " << loaded.size() << " frames interacting with residue type: " << query_res[0]->getName() << endl;
 
     // get the matches to the query
-    vector<mstreal> bbox = {0,0,0,0,0,0};
+    boundingBox bbox;
     bool verbose = true;
-    positionHasher::updateBoundingBox(loaded,bbox,verbose);
+    bbox.update(loaded);
     frameTable table(bbox, 0.25, 36);
 
     for (mobileFrame* frame : loaded) {
