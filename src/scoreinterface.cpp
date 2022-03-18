@@ -168,14 +168,15 @@ void interfaceSearch::writeContactPropertyToFile(string name) {
 
 /* --- --- --- --- --- binderScorer --- --- --- --- --- */
 
-binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure& _target) : target(_target), posCut(params.posCut), oriCut(params.oriCut)  {
+binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure& _target) : target(_target), posCut(params.posCut), oriCut(params.oriCut), renormalizeProbabilities(params.renormalizeProbabilities) {
     aaTypes = SeqToolsExtension::getAANames();
     targetName = MstSys::splitPath(target.getName(),1);
     MiscTools::extractBackboneFromStructure(target,targetBackbone);
     prepareVoxelGrids(params.frameDBPath);
+    pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
 }
 
-binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure& complex, string binderChainIDsString, string targetChainIDsString) : posCut(params.posCut), oriCut(params.oriCut) {
+binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure& complex, string binderChainIDsString, string targetChainIDsString) : posCut(params.posCut), oriCut(params.oriCut), renormalizeProbabilities(params.renormalizeProbabilities) {
     aaTypes = SeqToolsExtension::getAANames();
 
     vector<string> targetChainIDs = MstUtils::split(targetChainIDsString,"_");
@@ -200,6 +201,7 @@ binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure&
     for (string binderChainID : binderChainIDs) {
         vector<Residue*> binderChainResidues = complex.getChainByID(binderChainID)->getResidues();
         binderResidues.insert(binderResidues.end(),binderChainResidues.begin(),binderChainResidues.end());
+        for (Residue* R : binderResidues) R->setName("UNK");
     }
     binder = new augmentedStructure(binderResidues);
     binder->setName(targetName);
@@ -208,9 +210,21 @@ binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure&
     MiscTools::extractBackboneFromStructure(target,targetBackbone);
     prepareVoxelGrids(params.frameDBPath);
 
+    // define interface by looking at VDW contacts
     defineInterfaceUsingVDWContacts();
 
+    // depending on what target residues are defined as the binding site, renormalize the frame probabilities
     setFrameProbabilityTables();
+
+    // in case the user will switch to using potential contacts later, load that data
+    pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
+}
+
+void binderScorer::setBinder(augmentedStructure* _binder) {
+    if (complexMode) MstUtils::error("Cannot set another binder in complex mode","binderScorer::setBinder");
+    binder = _binder;
+    for (Residue* R : binder->getResidues()) R->setName("UNK");
+    pConts.setBinderResidues(binder->getResidues());
 }
 
 void binderScorer::setTargetBindingSiteResidues(vector<Residue*> sel) {
@@ -218,6 +232,7 @@ void binderScorer::setTargetBindingSiteResidues(vector<Residue*> sel) {
     for (Residue* R : sel) targetResidues.insert(R);
     cout << "Set " << targetResidues.size() << " target residues" << endl;
     setFrameProbabilityTables();
+    pConts.setTargetResidues(sel);
 }
 
 void binderScorer::defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold) {
@@ -230,13 +245,14 @@ void binderScorer::defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthresho
     }
     cout << "Set " << targetResidues.size() << " target residues with relSASA threshold " << relSASAthreshold << endl;
     setFrameProbabilityTables();
+    vector<Residue*> targetResVec(targetResidues.begin(),targetResidues.end());
+    pConts.setTargetResidues(targetResVec);
 }
 
 void binderScorer::defineInterfaceByPotentialContacts() {
     if (targetResidues.empty()) MstUtils::error("Must define target residues before interface");
-    vector<Residue*> targetBSRes(targetResidues.begin(),targetResidues.end());
-    potentialContacts pC(targetBSRes,getBinderResidues());
-    interfaceResidues = pC.getContacts(true);
+    pConts.setBinderResidues(getBinderResidues());
+    interfaceResidues = pConts.getContacts(false);
     cout << "Defined " << interfaceResidues.size() << " potential contacts" << endl;
     // check that there are no target residues in the contacts that remain undefined
     for (auto pair : interfaceResidues) {
@@ -272,9 +288,11 @@ void binderScorer::scoreResiduePair(pair<Residue*,Residue*> resPair) {
     }
     res_t aaType = SeqTools::aaToIdx(resAAName);
     Residue* targetRes = resPair.first;
+    Residue* binderRes = resPair.second;
+    cout << "Searching contact between " << targetRes->getChainID() << targetRes->getNum() << " and " << binderRes->getChainID() << binderRes->getNum() << endl;
     
     timer.start();
-    residueFrame* query = defineQuery(resPair.first,resPair.second);
+    residueFrame* query = defineQuery(targetRes,binderRes);
     frameTables[aaType]->setSearchParams(posCut,oriCut);
     pair<int,int> vals = frameTables[aaType]->findInteractingFrameProbability(query,targetRes->getResidueIndex());
     timer.stop();
@@ -372,11 +390,12 @@ void binderScorer::prepareVoxelGrids(string frameDBPath) {
                 currentFrames.push_back(frame);
             }
         }
-        boundingBox bbox;
+        boundingBox bbox(1.0);
         bool verbose = true;
         bbox.update(currentFrames);
         bbox.printBounds();
         frameProbability* fTable = new frameProbability(bbox, posCut/mstreal(2), 360/int(oriCut/mstreal(2)));
+        fTable->setSearchParams(posCut,oriCut);
         for (mobileFrame* frame : currentFrames) fTable->insertFrame(frame);
         frameTables[current_aa] = fTable;
     }
@@ -388,7 +407,7 @@ void binderScorer::prepareVoxelGrids(string frameDBPath) {
 void binderScorer::defineInterfaceUsingVDWContacts() {
     if (!complexMode) MstUtils::error("Can only define interface using van der Waals contacts when scoring a full-atom complex");
     vdwContacts C(target.getResidues(),binder->getResidues());
-    interfaceResidues = C.getInteractingRes();
+    interfaceResidues = C.getInteractingResPairs();
     for (auto pair : interfaceResidues) targetResidues.insert(pair.first);
 
     cout << interfaceResidues.size() << " interface contacts when defined by van der Waals interactions" << endl;
@@ -403,7 +422,7 @@ void binderScorer::setFrameProbabilityTables() {
         for (Residue* targetRes : targetResidues) {
             if (SeqTools::aaToIdx(targetRes->getName()) == current_aa) {
                 if (fTable->isTargetResidueDefined(targetRes->getResidueIndex())) continue;
-                fTable->setTargetResidue(targetRes->getResidueIndex(),targetBackbone);
+                fTable->setTargetResidue(targetRes->getResidueIndex(),targetBackbone,renormalizeProbabilities);
             }
         }
     }

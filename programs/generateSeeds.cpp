@@ -9,10 +9,10 @@
 int main(int argc, char *argv[]) {
     MstOptions op;
     op.setTitle("Given a target, generate protein backbone fragments around the surface");
-    op.addOption("targetPDB","A PDB file defining the structure of the protein target. Must have a defined sequence.",false);
-    op.addOption("complexPDB","A PDB file defining the complex between the protein target and designed binder. The target must have a defined sequence",false);
+    op.addOption("targetPDB","A PDB file containing the structure of the protein target. Must have a defined sequence.",false);
+    op.addOption("complexPDB","A PDB file containg structure of a complex between the protein target and some binder. The target must have a defined sequence",false);
     op.addOption("binderChains","--complexPDB mode only. The binder chain ID(s) delimited by '_', e.g. '0_1'",false);
-    op.addOption("wholeSurface","--complexPDB mode only. If specified, will generate seeds around the whole surface, not just the known binding site",false);
+    op.addOption("wholeSurface","--complexPDB mode only. If specified, will generate seeds around the whole surface, not just the site that the binder is interacting with",false);
     op.addOption("numMatches","Find up to this many matches per binding site fragment (if more are found, take the lowest RMSD matches) (default = 1000)",false);
     op.addOption("fasstDB","A path to a structure database that is compatible with FASST",true);
     op.setOptions(argc,argv);
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
         vector<Residue*> bindingSiteRes;
         if (!wholeSurface) {
             vdwContacts vdwC(targetChains,binderChains);
-            vector<pair<Residue*,Residue*>> interacting = vdwC.getInteractingRes();
+            vector<pair<Residue*,Residue*>> interacting = vdwC.getInteractingResPairs();
             for (auto pair : interacting) {
                 Residue* targetR = pair.first;
                 if (find(bindingSiteRes.begin(),bindingSiteRes.end(),targetR) == bindingSiteRes.end()) bindingSiteRes.push_back(targetR);
@@ -79,6 +79,7 @@ int main(int argc, char *argv[]) {
         // generate seeds
         binPath = seedGen.generateSeeds();
         targetName = seedGen.getTargetName();
+        seedGen.writeBindingSiteFragments(targetName+"_bindingSiteFragments.pdb");
 
         // get the RMSD of each seed to the lowest RMSD window of the peptide
         seedBinaryFile seedBin(binPath);
@@ -97,7 +98,7 @@ int main(int argc, char *argv[]) {
         while (seedBin.hasNext()) {
             Structure* seed = seedBin.next();
             Chain* seedChain = seed->getChainByID("0");
-            MstUtils::assert(seedChain != NULL,"error: assertion failed. Seed missing chain 0","generateSeeds::main");
+            if (seedChain == NULL) MstUtils::error("Seed missing chain 0","generateSeeds::main");
 
             MiscTools::alignment bestAlignment;
             string bestAlignmentChainID = "";

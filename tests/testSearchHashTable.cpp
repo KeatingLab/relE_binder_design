@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     augmentedStructure S(op.getString("pdb"));
     selector sel(S);
     vector<Residue*> query_res = sel.selectRes(op.getString("sel"));
-    MstUtils::assert(query_res.size(),"The selection must consist of two residues only","testSearchHashTable::main");
+    if (query_res.size() != 2) MstUtils::error("The selection must consist of two residues only","testSearchHashTable::main");
     cout << "Selected residues: " << query_res[0]->getChainID() << query_res[0]->getNum() << " and " << query_res[1]->getChainID() << query_res[1]->getNum() << endl;
     residueFrame* frameI = S.getResidueFrame(query_res[0]->getResidueIndex());
     residueFrame* frameJ = S.getResidueFrame(query_res[1]->getResidueIndex());

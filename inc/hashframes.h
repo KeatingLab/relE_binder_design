@@ -13,13 +13,15 @@
 
 class boundingBox {
     public:
+        boundingBox(mstreal _pad = 0.0) : pad(_pad) {};
+
         void update(vector<mobileFrame*> frames);
         void update(Frame* frame);
         void update(const CartesianPoint& point);
 
-        bool isWithinBounds(Frame* frame, mstreal pad = 0.0) const;
-        bool isWithinBounds(Atom* A, mstreal pad = 0.0) const;
-        bool isWithinBounds(const CartesianPoint& point, mstreal pad = 0.0) const;
+        bool isWithinBounds(Frame* frame, mstreal tolerance = 0.0) const;
+        bool isWithinBounds(Atom* A, mstreal tolerance = 0.0) const;
+        bool isWithinBounds(const CartesianPoint& point, mstreal tolerance = 0.0) const;
 
         void printBounds();
 
@@ -34,6 +36,8 @@ class boundingBox {
         mstreal getYWidth() const {return yMax-yMin;}
         mstreal getZWidth() const {return zMax-zMin;}
     private:
+        mstreal pad;
+
         mstreal xMin = std::numeric_limits<double>::max();
         mstreal xMax = std::numeric_limits<double>::min();
         mstreal yMin = std::numeric_limits<double>::max();
@@ -46,8 +50,8 @@ class positionHasher {
     public:
         positionHasher(boundingBox _bbox, mstreal _increment);
 
-        int hashFrame(Frame* frame);
-        int hashPoint(const CartesianPoint& point);
+        int hashFrame(Frame* frame, bool strict = false);
+        int hashPoint(const CartesianPoint& point, bool strict = false);
 
         vector<int> region(Frame* frame, mstreal cutoff);
         vector<int> region(const CartesianPoint& point, mstreal cutoff);
@@ -95,7 +99,7 @@ class orientationHasher {
 
     protected:     
         int hashAngles(const anglesFromFrame& angles);
-        void getAngleBins(const anglesFromFrame& angles, int& alphaBin, int& betaBin, int& gammaBin);
+        void getAngleBins(const anglesFromFrame& angles, int& alphaBin, int& betaBin, int& gammaBin, bool strict = true);
         int hashAngleBins(const int& alphaBin, const int& betaBin, const int& gammaBin);
         void getAngleBinsRange(const anglesFromFrame& angles, mstreal cutoff, vector<int>& alphaBins, vector<int>& betaBins, vector<int>& gammaBins);
 
@@ -157,7 +161,7 @@ class frameProbability : public frameTable {
         }
 
         bool isTargetResidueDefined(int resIdx) {return targetResDefined.find(resIdx) != targetResDefined.end();}
-        void setTargetResidue(int resIdx, const Structure& target);
+        void setTargetResidue(int resIdx, const Structure& target, bool clashCheck = true);
 
         pair<int,int> findInteractingFrameProbability(Frame* frame, int targetResIdx);
         vector<mstreal> findBinderResAADist(Frame* frame, int targetResIdx, mstreal pseudocount = 1.0);

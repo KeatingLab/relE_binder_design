@@ -85,3 +85,54 @@ void MiscTools::extractBackboneFromStructure(const Structure& source, Structure&
     }
     destination.setName(source.getName());
 }
+
+/* --- --- --- --- --- twoDimHistogram --- --- --- --- --- */
+
+void twoDimHistogram::setCounts(vector<vector<int>> _counts) {
+    if (_counts.size() != dim1NBins) MstUtils::error("Wrong number of bins along dimension 1","twoDimHistogram::setCounts");
+    counts.clear();
+    normalizingConstant = 0;
+    for (vector<int> row : _counts) {
+        if (row.size() != dim2NBins)  MstUtils::error("Wrong number of bins along dimension 2","twoDimHistogram::setCounts");
+        for (int val : row) normalizingConstant+=val;
+        counts.push_back(row);
+    }
+}
+
+int twoDimHistogram::getCounts(mstreal val1, mstreal val2) {
+    int idx1, idx2;
+    getIdx(val1,val2,idx1,idx2);
+    return counts[idx1][idx2];
+}
+
+mstreal twoDimHistogram::getDensity(mstreal val1, mstreal val2) {
+    int idx1, idx2;
+    getIdx(val1,val2,idx1,idx2);
+    return mstreal(counts[idx1][idx2]) / mstreal(normalizingConstant) / (dim1BinSize*dim2BinSize);
+}
+
+void twoDimHistogram::getIdx(mstreal val1, mstreal val2, int& idx1, int& idx2) {
+    if (counts.empty()) MstUtils::error("Must set counts before attempting to retrieve values","twoDimHistogram::getIdx");
+    if (val1 < 0) idx1 = 0;
+    else idx1 = min(dim1NBins-1,int(floor((val1-dim1Min)/dim1BinSize)));
+    if (val2 < 0) idx2 = 0;
+    else idx2 = min(dim2NBins-1,int(floor((val2-dim2Min)/dim2BinSize)));
+}
+
+void twoDimHistogram::reportHistogram() {
+    cout << "dim1NBins: " << dim1NBins << endl;
+    cout << "dim2NBins: " << dim2NBins << endl;
+    cout << "dim1Min: " << dim1Min << endl;
+    cout << "dim1Max: " << dim1Max << endl;
+    cout << "dim2Min: " << dim2Min << endl;
+    cout << "dim2Max: " << dim2Max << endl;
+    cout << "dim1BinSize: " << dim1BinSize << endl;
+    cout << "dim2BinSize: " << dim2BinSize << endl;
+    cout << "normalizingConstant: " << normalizingConstant << endl;
+    for (int i = 0; i < counts.size(); i++) {
+        for (int j = 0; j < counts.size(); j++) {
+            cout << counts[i][j] << " ";
+        }
+        cout << endl;
+    }
+}

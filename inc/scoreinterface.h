@@ -88,15 +88,17 @@ class interfaceSearch {
 
         vector<set<mobileFrame*>> matchingFrames;
         vector<mstreal> searchTimes;
-
+ 
         fstream* contact_info_out = nullptr;
         fstream* match_info_out = nullptr;
 };
 
 struct binderScorerParams {
     string frameDBPath = ""; //path to database of mobile frames aligned to a global frame
+    string potentialContactsJSONPath = ""; //path to JSON file with 2D probability density
     mstreal posCut = 0; //angstroms
     mstreal oriCut = 0; //degrees
+    bool renormalizeProbabilities = true;
 };
 
 class binderScorer {
@@ -112,13 +114,9 @@ class binderScorer {
             for (auto const it : frameTables) delete it.second;
         }
 
-        void setBinder(augmentedStructure* _binder) {
-            if (complexMode) MstUtils::error("Cannot set another binder in complex mode","binderScorer::setBinder");
-            binder = _binder;
-        }
-
+        void setBinder(augmentedStructure* _binder);
         void setTargetBindingSiteResidues(vector<Residue*> sel);
-        void defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold = 0.1);
+        void defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold = 0.05);
 
         void defineInterfaceByPotentialContacts();
         // void manuallySetInterface(vector<pair<Residue*,Residue*>> contacts);
@@ -168,13 +166,16 @@ class binderScorer {
         vector<Chain*> binderChains;
         vector<Chain*> proteinChains;
 
+        potentialContacts pConts;
         vector<pair<Residue*,Residue*>> interfaceResidues; // target, binder residue
         set<Residue*> targetResidues; //a subset of residues in the target at the binding site
 
         mstreal posCut = 0.25; //angstroms
         mstreal oriCut = 15.0; //degrees
 
+        bool renormalizeProbabilities = true;
         map<res_t,frameProbability*> frameTables;
+
 
         MstTimer timer;
 

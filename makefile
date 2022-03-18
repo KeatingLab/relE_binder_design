@@ -10,8 +10,11 @@ SASASRC = $(SASADIR)/src
 SASAOBJS = $(SASADIR)/src
 SASALIB = $(SASADIR)/src
 
+JSONDIR = ../json
+JSONINCL = $(JSONDIR)/single_include
+
 CC = g++
-CFLAGS = -std=c++11 -g3 -gdwarf-3 -O1 -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(INCL)
+CFLAGS = -std=c++11 -g3 -gdwarf-3 -O1 -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(JSONINCL) -I$(INCL)
 MPICC = mpic++
 MPIFLAGS = -std=c++0x -O
 

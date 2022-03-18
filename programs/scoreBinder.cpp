@@ -13,6 +13,7 @@ int main(int argc, char *argv[]) {
     MstOptions op;
     op.setTitle("Scores a protein-protein interface by finding the prevalence of pairwise interaction geometries in the PDB");
     op.addOption("frameDB","Path to mobile frame database",true);
+    op.addOption("contactData","Path to a JSON file describing probability density of contacts",true);
     op.addOption("complexPDB","A PDB file defining the complex between the protein target and designed binder. The target must have a defined sequence",false);
     op.addOption("binderChains","The binder chain ID(s) delimited by '_', e.g. '0_1'. If in --targetPDB mode, will be removed from the structure before scoring",false);
     op.addOption("targetChains","--complexPDB mode only. The protein chain(s) delimited by '_', e.g. 'A_B'",false);
@@ -23,6 +24,7 @@ int main(int argc, char *argv[]) {
     op.addOption("vdwContacts","If provided, will define the interface using VDW contacts, otherwise will use CB definition. Not compatible with --targetPDB mode",false);
     op.addOption("distanceCutoff","The distance cutoff that is applied when determining whether a putative match has the proper position (default = 0.5 Å)",false);
     op.addOption("orientationCutoff","The orientation cutoff that is applied when determining whether a putative match has the proper orientation (default = 15°)",false);
+    op.addOption("dontRenormalizeProbability","By default, potential residue interactions that would clash with atoms of the target backbone are omitted and the conditional probability the interaction is renormalized. If this is provided, will not do this",false);
     op.setOptions(argc,argv);
 
     if (op.isGiven("complexPDB")) {
@@ -35,6 +37,7 @@ int main(int argc, char *argv[]) {
     }
 
     string mobileFrameDB = op.getString("frameDB");
+    string contactData = op.getString("contactData");
     string complexPDB = op.getString("complexPDB","");
     string targetChainIDsString = op.getString("targetChains");
     string binderChainIDsString = op.getString("binderChains");
@@ -45,13 +48,16 @@ int main(int argc, char *argv[]) {
     bool defineVDWContacts = op.isGiven("vdwContacts");
     mstreal posCut = op.getReal("distanceCutoff",0.5);
     mstreal oriCut = op.getReal("orientationCutoff",15.0);
+    bool renormalizeProbabilities = !op.isGiven("dontRenormalizeProbability");
 
     binderScorer* scorer = nullptr;
 
     binderScorerParams params;
     params.frameDBPath = mobileFrameDB;
+    params.potentialContactsJSONPath = contactData;
     params.posCut = posCut;
     params.oriCut = oriCut;
+    params.renormalizeProbabilities = renormalizeProbabilities;
 
     if (complexPDB != "") {
         augmentedStructure complex(complexPDB);
@@ -77,8 +83,7 @@ int main(int argc, char *argv[]) {
             vector<string> binderChainIDs = MstUtils::split(binderChainIDsString,"_");
             for (string chainID : binderChainIDs) {
                 Chain* C = target.getChainByID(chainID);
-                if (C == NULL) MstUtils::error("Chain not found in structure: "+MstUtils::toString(C->getID()),"binderScorer::main");
-                target.deleteChain(C);
+                if (C == NULL) MstUtils::error("Chain not found in structure: "+MstUtils::toString(chainID),"binderScorer::main()");
             }
             cout << "Deleted " << binderChainIDs.size() << " binder chains from the structure" << endl;
         }

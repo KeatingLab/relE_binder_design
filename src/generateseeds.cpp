@@ -3,29 +3,29 @@
 /* --- --- --- --- --- seedBinaryFile --- --- --- --- --- */
 
 bool seedBinaryFile::hasNext() {
-    MstUtils::assert(readMode, "hasNext not supported in write mode","seedBinaryFile::hasNext");
+    if (!readMode) MstUtils::error("hasNext not supported in write mode","seedBinaryFile::hasNext");
     return fs.peek() != EOF;
 }
 
 Structure *seedBinaryFile::next() {
-    MstUtils::assert(readMode, "next not supported in write mode","seedBinaryFile::hasNext");
+    if (!readMode) MstUtils::error("next not supported in write mode","seedBinaryFile::next");
     return readNextFileSection(false).first;
 }
 
 void seedBinaryFile::skip() {
-    MstUtils::assert(readMode, "skip not supported in write mode","seedBinaryFile::hasNext");
+    if (!readMode) MstUtils::error("skip not supported in write mode","seedBinaryFile::skip");
     Structure* S = readNextFileSection(false).first;
     delete S;
 }
 
 void seedBinaryFile::reset() {
-    MstUtils::assert(readMode, "reset not supported in write mode","seedBinaryFile::hasNext");
+    if (!readMode) MstUtils::error("reset not supported in write mode","seedBinaryFile::reset");
     fs.clear(); // this is necessary in case ifstream doesn't clear eofbit
     fs.seekg(0, fs.beg);
 }
 
 void seedBinaryFile::scanFilePositions() {
-    //seedBinaryFile::assert(readMode, "scanFilePositions not supported in write mode");
+    if (!readMode) MstUtils::error("scanFilePositions not supported in write mode","seedBinaryFile::scanFilePositions");
     MstTimer timer; timer.start();
     if (!_structureNames.empty()) return;
     reset();
@@ -56,7 +56,7 @@ void seedBinaryFile::scanFilePositions() {
 }
 
 Structure *seedBinaryFile::getStructureNamed(string name) {
-    MstUtils::assert(readMode, "getStructureNamed not supported in write mode");
+    if (!readMode) MstUtils::error("readMode not supported in write mode","seedBinaryFile::readMode");
     if (_filePositions.size() == 0) {
         scanFilePositions();
     }
@@ -69,7 +69,7 @@ Structure *seedBinaryFile::getStructureNamed(string name) {
 }
 
 void seedBinaryFile::jumpToStructureIndex(int idx) {
-    MstUtils::assert(readMode, "jumpToStructureIndex not supported in write mode");
+    if (!readMode) MstUtils::error("jumpToStructureIndex not supported in write mode","seedBinaryFile::jumpToStructureIndex");
     if (_structureNames.size() == 0) {
         scanFilePositions();
     }
@@ -85,8 +85,8 @@ void seedBinaryFile::jumpToStructureIndex(int idx) {
 }
 
 void seedBinaryFile::appendStructure(Structure *s) {
-    MstUtils::assert(!readMode, "appendStructure not supported in read mode");
-    MstUtils::assert(s->residueSize() != 0, "Structure must have at least one residue");
+    if (readMode) MstUtils::error("appendStructure not supported in write mode","seedBinaryFile::appendStructure");
+    if (s->residueSize() <= 0) MstUtils::error("Structure must have at least one residue","seedBinaryFile::appendStructure");
 
     if (!structure_added) {
         structure_added = true;
@@ -119,12 +119,12 @@ pair<Structure*,long> seedBinaryFile::readNextFileSection(bool save_metadata, bo
     S->readData(fs);
     if (verbose) cout << S->getName() << endl;
     MstUtils::readBin(fs, sect);
-    MstUtils::assert(sect=='E',"Section missing terminating 'E'","seedBinaryFile::readNextFileSection");
+    if (sect!='E') MstUtils::error("Section missing terminating 'E'","seedBinaryFile::readNextFileSection");
     return pair<Structure*,long>(S,pos);
 }
 
 vector<string> seedBinaryFile::getStructureNames() {
-    MstUtils::assert(readMode, "getStructureNamed not supported in write mode");
+    if (!readMode) MstUtils::error("getStructureNamed not supported in write mode","seedBinaryFile::getStructureNames");
     if (_filePositions.size() == 0) {
         scanFilePositions();
     }
@@ -164,8 +164,9 @@ void seedGenerator::setBindingSite(mstreal rSASAthresh) {
 }
 
 string seedGenerator::generateSeeds() {
-    if (bindingSite.empty()) MstUtils::error("Cannot generate seeds, no binding site residues defined","seedGenerator::generateSeeds");
+    if (bindingSite.empty()) MstUtils::error("Cannot generate seeds, no binding site residues defined","seedGenerator::generateSeeds()");
 
+    if (!allFragmentsData.empty()) for (auto frag : allFragmentsData) delete frag.fragment;
     allFragmentsData.clear();
 
     // open seed binary / data files
@@ -187,11 +188,21 @@ string seedGenerator::generateSeeds() {
     // generate seed(s) from each match, if possible
     generateSeedsFromMatches(seedBin,fragOut,seedOut);
 
-    // clean up
-    for (auto frag : allFragmentsData) delete frag.fragment;
     fragOut.close(); seedOut.close();
-
     return seedBinPath;
+}
+
+void seedGenerator::writeBindingSiteFragments(string path) {
+    if (allFragmentsData.empty()) MstUtils::error("No fragments to write to file","seedGenerator::writeBindingSiteFragments()");
+
+    fstream out;
+    MstUtils::openFile(out,path,fstream::out);
+
+    for (int i = 0; i < allFragmentsData.size(); i++) {
+        fragmentData& fD = allFragmentsData[i];
+        out << "HEADER    " << fD.getName() << endl;
+        fD.fragment->writePDB(out);
+    }
 }
 
 void seedGenerator::getBindingSiteFragments() {
@@ -224,7 +235,9 @@ void seedGenerator::findStructuralMatches() {
         timer.start();
         fD.matches = F.search();
         timer.stop();
-        cout << "Took " << timer.getDuration() << " seconds" << endl;
+        cout << "Took " << timer.getDuration() << " seconds to find " << fD.matches.size() << " matches" << endl;
+        // vector<Sequence> matchSeq = F.getMatchSequences(fD.matches);
+        // for (Sequence s : matchSeq) cout << s.toString() << endl;
     }
 }
 
@@ -234,7 +247,7 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
         for (fasstSolution sol : fD.matches) {
             // get residues contacting the central residue of the match
             vector<int> matchIndices = F.getMatchResidueIndices(sol);
-            MstUtils::assert(F.isResiduePairBoolPropertyDefined(sol.getTargetIndex(),"vdw"),"vdw property not defined for this structure in DB","seedGenerator::generateSeedsFromMatches");
+            if (!F.isResiduePairBoolPropertyDefined(sol.getTargetIndex(),"vdw")) MstUtils::error("vdw property not defined for this structure in DB","seedGenerator::generateSeedsFromMatches");
             set<int> contactingRes = F.getResiduePairBoolProperty(sol.getTargetIndex(),"vdw",matchIndices[fD.cenResIdxInFrag]);
 
             if (contactingRes.empty()) continue;

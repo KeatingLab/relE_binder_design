@@ -19,21 +19,76 @@ int main(int argc, char *argv[]) {
 
     fstream cont_out;
     MstUtils::openFile(cont_out, structure_name+"_drawcontacts.tsv",fstream::out);
+
+    fstream ss_out;
+    MstUtils::openFile(ss_out, structure_name+"_drawcontacts_ss.tsv",fstream::out);
+
+    fstream sb_out;
+    MstUtils::openFile(sb_out, structure_name+"_drawcontacts_sb.tsv",fstream::out);
+
+    fstream bs_out;
+    MstUtils::openFile(bs_out, structure_name+"_drawcontacts_bs.tsv",fstream::out);
+
+    fstream bb_out;
+    MstUtils::openFile(bb_out, structure_name+"_drawcontacts_bb.tsv",fstream::out);
     
     int count = 0;
     for (Residue* Ri : S.getResidues()) {
-//        cout << "res: " << R->getNum() << endl;
-        set<Residue*> contactingResidues = vdwC.getInteractingRes(Ri);
-        for (Residue* Rj : contactingResidues) {
+        set<Residue*> contactingResiduesSS = vdwC.getInteractingRes(Ri,vdwContacts::vdwContactType::SIDECHAIN);
+        for (Residue* Rj : contactingResiduesSS) {
             out << S.getName() << ",";
             out << Ri->getChainID() << "," << Ri->getNum() << "," << Ri->getName() << ",";
             out << Rj->getChainID() << "," << Rj->getNum() << "," << Rj->getName() << ",";
             out << endl;
 
-            cont_out << Ri->getChainID() << Ri->getNum() << "\t";
-            cont_out << Rj->getChainID() << Rj->getNum() << "\t";
-            cont_out << 1;
-            cont_out << endl;
+            ss_out << Ri->getChainID() << Ri->getNum() << "\t";
+            ss_out << Rj->getChainID() << Rj->getNum() << "\t";
+            ss_out << 1;
+            ss_out << endl;
+
+            count++;
+        }
+
+        set<Residue*> contactingResiduesSB = vdwC.getInteractingRes(Ri,vdwContacts::vdwContactType::SIDECHAIN_BACKBONE);
+        for (Residue* Rj : contactingResiduesSB) {
+            out << S.getName() << ",";
+            out << Ri->getChainID() << "," << Ri->getNum() << "," << Ri->getName() << ",";
+            out << Rj->getChainID() << "," << Rj->getNum() << "," << Rj->getName() << ",";
+            out << endl;
+
+            sb_out << Ri->getChainID() << Ri->getNum() << "\t";
+            sb_out << Rj->getChainID() << Rj->getNum() << "\t";
+            sb_out << 1;
+            sb_out << endl;
+
+            count++;
+        }
+
+        set<Residue*> contactingResiduesBS = vdwC.getInteractingRes(Ri,vdwContacts::vdwContactType::BACKBONE_SIDECHAIN);
+        for (Residue* Rj : contactingResiduesBS) {
+            out << S.getName() << ",";
+            out << Ri->getChainID() << "," << Ri->getNum() << "," << Ri->getName() << ",";
+            out << Rj->getChainID() << "," << Rj->getNum() << "," << Rj->getName() << ",";
+            out << endl;
+
+            bs_out << Ri->getChainID() << Ri->getNum() << "\t";
+            bs_out << Rj->getChainID() << Rj->getNum() << "\t";
+            bs_out << 1;
+            bs_out << endl;
+
+            count++;
+        }
+        set<Residue*> contactingResiduesBB = vdwC.getInteractingRes(Ri,vdwContacts::vdwContactType::BACKBONE);
+        for (Residue* Rj : contactingResiduesBB) {
+            out << S.getName() << ",";
+            out << Ri->getChainID() << "," << Ri->getNum() << "," << Ri->getName() << ",";
+            out << Rj->getChainID() << "," << Rj->getNum() << "," << Rj->getName() << ",";
+            out << endl;
+
+            bb_out << Ri->getChainID() << Ri->getNum() << "\t";
+            bb_out << Rj->getChainID() << Rj->getNum() << "\t";
+            bb_out << 1;
+            bb_out << endl;
 
             count++;
         }

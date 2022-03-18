@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     Structure bbStructure(RotamerLibrary::getBackbone(inputStructure));
     cout << "extracted backbone with " << bbStructure.residueSize() << " residues" << endl;
 
-    potentialContacts pC(bbStructure.getResidues(),bbStructure.getResidues(),true,false);
+    potentialContacts pC(bbStructure.getResidues(),bbStructure.getResidues());
     vector<pair<Residue*,Residue*>> pContacts = pC.getContacts(true);
     cout << "Found " << pContacts.size() << " distance based contacts" << endl;
 

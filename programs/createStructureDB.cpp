@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
                 const augmentedStructure& P = frameDB.getTarget(ti);
                 vdwContacts vdwC(P.getResidues());
                 bool verbose = true;
-                frameDB.setVDWContacts(ti,vdwC.getAllInteractingRes(verbose));
+                frameDB.setVDWContacts(ti,vdwC.getAllInteractingRes(vdwContacts::vdwContactType::ALL, verbose));
             }
         }
         frameDB.writeDBFile(op.getString("o")+".db");

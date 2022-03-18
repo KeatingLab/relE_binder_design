@@ -299,7 +299,7 @@ pair<int,int> alignInteractingFrames::getSequenceIdentity(Residue* R1, Residue* 
     Sequence R1WindowSeq = R1ChainSeq.extractRange(R1Index+windowMin,R1Index+windowMax);
     Sequence R2WindowSeq = R2ChainSeq.extractRange(R2Index+windowMin,R2Index+windowMax);
 
-    MstUtils::assert((R1WindowSeq.length()==R1WindowSeq.length()),"Sequences must be the same length","alignInteractingFrames::getSequenceIdentity");
+    if (R1WindowSeq.length() != R1WindowSeq.length()) MstUtils::error("Sequences must be the same length","alignInteractingFrames::getSequenceIdentity");
     return pair<int,int>(R1WindowSeq.length(),SeqTools::sequenceIdentity(R1WindowSeq,R2WindowSeq));
 }
 
@@ -359,24 +359,24 @@ void mobileFrame::readCartesianPointFromBin(CartesianPoint& p, istream& ifs) {
 /* --- --- --- --- --- frameDB --- --- --- --- --- */
 
 bool frameDB::hasNext() {
-    MstUtils::assert(readMode,"hasNext not supported in write mode","frameDB::hasNext");
+    if (!readMode) MstUtils::error("hasNext not supported in write mode","frameDB::hasNext");
     return fs.peek() != EOF;
 }
 
 void frameDB::skip() {
-    MstUtils::assert(readMode,"skip not supported in write mode","frameDB::skip");
+    if (!readMode) MstUtils::error("skip not supported in write mode","frameDB::skip");
     mobileFrame* frame = readNextFileSection();
     delete frame;
 }
 
 void frameDB::reset() {
-    MstUtils::assert(readMode,"reset not supported in write mode","frameDB::reset");
+    if (!readMode) MstUtils::error("reset not supported in write mode","frameDB::reset");
     fs.clear();
     fs.seekg(0,fs.beg);
 }
 
 mobileFrame* frameDB::next() {
-    MstUtils::assert(readMode,"next not supported in write mode","frameDB::next");
+    if (!readMode) MstUtils::error("next not supported in write mode","frameDB::next");
     return readNextFileSection();
 }
 
@@ -391,7 +391,7 @@ vector<mobileFrame*> frameDB::loadAllFrames() {
 }
 
 void frameDB::appendFrame(mobileFrame* frame) {
-    MstUtils::assert(!readMode, "appendStructure not supported in read mode","frameDB::appendFrame");
+    if (readMode) MstUtils::error("appendStructure not supported in write mode","frameDB::appendStructure");
     if (!frameAdded) {
         frameAdded = true;
         MstUtils::writeBin(fs,version);

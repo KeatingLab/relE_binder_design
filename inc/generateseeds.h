@@ -21,7 +21,7 @@ public:
     };
 
     seedBinaryFile(const seedBinaryFile &other): readMode(true), _filePath(other._filePath), _filePositions(other._filePositions), _structureNames(other._structureNames) {
-        MstUtils::assert(other.readMode, "Copying write-only binary file not supported","seedBinaryFile::seedBinaryFile");
+        if (!other.readMode) MstUtils::error("Copying write-only binary file not supported","seedBinaryFile::seedBinaryFile");
         cout << "Opening file stream for copy, with " << _structureNames.size() << " loaded structure names" << endl;
         openFileStream();
     }
@@ -90,6 +90,10 @@ class seedGenerator {
     public:
         seedGenerator(const Structure& target, string fasstDBPath, seedGenParams params = seedGenParams());
  
+        ~seedGenerator() {
+            for (auto frag : allFragmentsData) delete frag.fragment;
+        }
+        
         void setBindingSite(mstreal rSASAthresh);
         void setBindingSite(vector<Residue*> bindingSiteRes) {
             bindingSite = bindingSiteRes;
@@ -99,6 +103,8 @@ class seedGenerator {
         string generateSeeds();
 
         string getTargetName() {return targetName;}
+
+        void writeBindingSiteFragments(string path);
 
         struct fragmentData {
             public:

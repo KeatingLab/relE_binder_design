@@ -10,25 +10,25 @@ void boundingBox::update(Frame* frame) {
     update(frame->getO());
 }
 
-bool boundingBox::isWithinBounds(Frame* frame, mstreal pad) const {
-    return isWithinBounds(frame->getO(),pad);
+bool boundingBox::isWithinBounds(Frame* frame, mstreal tolerance) const {
+    return isWithinBounds(frame->getO());
 }
 
-bool boundingBox::isWithinBounds(Atom* A, mstreal pad) const {
-    return isWithinBounds(A->getCoor(),pad);
+bool boundingBox::isWithinBounds(Atom* A, mstreal tolerance) const {
+    return isWithinBounds(A->getCoor());
 }
 
-bool boundingBox::isWithinBounds(const CartesianPoint& point, mstreal pad) const {
+bool boundingBox::isWithinBounds(const CartesianPoint& point, mstreal tolerance) const {
     const mstreal& x = point[0];
     const mstreal& y = point[1];
     const mstreal& z = point[2];
 
-    if (x < xMin - pad) return false;
-    if (x > xMax + pad) return false;
-    if (y < yMin - pad) return false;
-    if (y > yMax + pad) return false;
-    if (z < zMin - pad) return false;
-    if (z > zMax + pad) return false;
+    if (x < xMin - tolerance) return false;
+    if (x > xMax + tolerance) return false;
+    if (y < yMin - tolerance) return false;
+    if (y > yMax + tolerance) return false;
+    if (z < zMin - tolerance) return false;
+    if (z > zMax + tolerance) return false;
     return true;
 }
 
@@ -37,12 +37,12 @@ void boundingBox::update(const CartesianPoint& point) {
     const mstreal& y = point[1];
     const mstreal& z = point[2];
 
-    if (x < xMin) xMin = x;
-    if (x > xMax) xMax = x;
-    if (y < yMin) yMin = y;
-    if (y > yMax) yMax = y;
-    if (z < zMin) zMin = z;
-    if (z > zMax) zMax = z;
+    if (x - pad < xMin) xMin = x - pad;
+    if (x + pad > xMax) xMax = x + pad;
+    if (y - pad < yMin) yMin = y - pad;
+    if (y + pad > yMax) yMax = y + pad;
+    if (z - pad < zMin) zMin = z - pad;
+    if (z + pad > zMax) zMax = z + pad;
 }
 
 void boundingBox::printBounds() {
@@ -56,20 +56,24 @@ void boundingBox::printBounds() {
 /* --- --- --- --- --- positionHasher --- --- --- --- --- */
 
 positionHasher::positionHasher(boundingBox _bbox, mstreal _increment) : bbox(_bbox), increment(_increment) {
-    if ((increment <= 0) || (increment > 5)) MstUtils::error("increment should be greater than 0 and less than 5","positionHasher::positionHasher");
+    if ((increment <= 0) || (increment > 5)) MstUtils::error("increment should be greater than 0 and less than 5","positionHasher::positionHasher()");
     numXBins = ceil((bbox.getXWidth()) / increment);
     numYBins = ceil((bbox.getYWidth()) / increment);
     numZBins = ceil((bbox.getZWidth()) / increment);
     if (getNumBins() > INT_MAX) MstUtils::error("Too many bins (integer overflow). Max allowable value is "+MstUtils::toString(INT_MAX));
 }
 
-int positionHasher::hashFrame(Frame* frame) {
+int positionHasher::hashFrame(Frame* frame, bool strict) {
     const CartesianPoint& origin = frame->getO();
     return hashPoint(origin);
 }
 
-int positionHasher::hashPoint(const CartesianPoint& point) {
-    if (point.size() != 3) MstUtils::error("Hasher only supports 3D coordinates","positionHasher::hashPoint");
+int positionHasher::hashPoint(const CartesianPoint& point, bool strict) {
+    if (point.size() != 3) MstUtils::error("Hasher only supports 3D coordinates","positionHasher::hashPoint()");
+    if (!bbox.isWithinBounds(point)) {
+        if (strict) MstUtils::error("Point falls outside of bounding box: "+MstUtils::toString(point.getX())+","+MstUtils::toString(point.getY())+","+MstUtils::toString(point.getZ()),"positionHasher::hashPoint");
+        else return -1;
+    }
     const mstreal& x = point[0]; const mstreal& y = point[1]; const mstreal& z = point[2];
     
     // Find the bin position in terms of x, y, z
@@ -167,20 +171,23 @@ anglesFromFrame::anglesFromFrame(Frame* frame) {
     const mstreal& Y_z = Y[2];
     const mstreal& Y_y = Y[1];
     alphaAngle = fmod(atan2(Y_z,Y_y) + 2*M_PI, 2*M_PI);
+    if (alphaAngle >= 2*M_PI) alphaAngle = 0.0;
 
     // beta is angle around Y-axis (in the Z,X plane)
     const mstreal& Z_x = Z[0];
     const mstreal& Z_z = Z[2];
     betaAngle = fmod(atan2(Z_x,Z_z) + 2*M_PI, 2*M_PI);
+    if (betaAngle >= 2*M_PI) betaAngle = 0.0;
 
     // gamma is angle around Z-axis (in the X,Y plane)
     const mstreal& X_y = X[1];
     const mstreal& X_x = X[0];
     gammaAngle = fmod(atan2(X_y,X_x) + 2*M_PI, 2*M_PI);
+    if (gammaAngle >= 2*M_PI) gammaAngle = 0.0;
 }
 
 bool anglesFromFrame::L1Check(const anglesFromFrame& other, mstreal cutoff) {
-    // This is analogous to the L1-Norm, but not the same because angle distance is not a metric
+    // This is similar to the L1-Norm, but not the same because angle distance is not a metric
     mstreal otherAlphaAngle = other.getAlpha();
     mstreal otherBetaAngle = other.getBeta();
     mstreal otherGammaAngle = other.getGamma();
@@ -231,19 +238,45 @@ int orientationHasher::hashAngles(const anglesFromFrame& angles) {
     int alphaBin = -1;
     int betaBin = -1;
     int gammaBin = -1;
-    getAngleBins(angles,alphaBin,betaBin,gammaBin);
+    getAngleBins(angles,alphaBin,betaBin,gammaBin,false);
     return hashAngleBins(alphaBin,betaBin,gammaBin);
 }
 
-void orientationHasher::getAngleBins(const anglesFromFrame& angles, int& alphaBin, int& betaBin, int& gammaBin) {
-    alphaBin = floor(angles.getAlpha() / increment);
-    betaBin = floor(angles.getBeta() / increment);
-    gammaBin = floor(angles.getGamma() / increment);
+void orientationHasher::getAngleBins(const anglesFromFrame& angles, int& alphaBin, int& betaBin, int& gammaBin, bool strict) {
+    // perform division in log space for increased precision (directly dividing doubles was not accurate)
+    if (strict) {
+        alphaBin = int(floor(angles.getAlpha()/increment));
+        betaBin = int(floor(angles.getBeta()/increment));
+        gammaBin = int(floor(angles.getGamma()/increment));
+    } else {
+        alphaBin = int(floor(angles.getAlpha()/increment)) % numBins;
+        betaBin = int(floor(angles.getBeta()/increment)) % numBins;
+        gammaBin = int(floor(angles.getGamma()/increment)) % numBins;
+    }
+    if ((alphaBin < 0) || (alphaBin >= numBins) || (betaBin < 0) || (betaBin >= numBins) || (gammaBin < 0) || (gammaBin >= numBins)) {
+        std::cout << std::fixed << std::setprecision(std::numeric_limits<long double>::digits10 + 1);
+        // cout << "2*M_PI: " << 2*M_PI << endl;
+        // cout << "increment: " << increment << endl;
+
+        // cout << "alphaAngle: " << angles.getAlpha() << endl;
+        // cout << "2*M_PI - alphaAngle: " << 2*M_PI - angles.getAlpha() << endl;
+        // cout << "angles.getAlpha() / increment: " << angles.getAlpha() / increment << endl;
+        // cout << "exp(log(angles.getAlpha()) - log(increment)): " << exp(log(angles.getAlpha()) - log(increment)) << endl;
+        
+        // cout << "betaAngle: " << angles.getBeta() << endl;
+        // cout << "2*M_PI - betaAngle: " << 2*M_PI - angles.getBeta() << endl;
+        // cout << "angles.getBeta() / increment: " << angles.getBeta() / increment << endl;
+        // cout << "exp(log(angles.getBeta()) - log(increment)): " << exp(log(angles.getBeta()) - log(increment)) << endl;
+        
+        // cout << "gammaAngle: " << angles.getGamma() << endl;
+        // cout << "2*M_PI - gammaAngle: " << 2*M_PI - angles.getGamma() << endl;
+        // cout << "angles.getGamma() / increment: " << angles.getGamma() / increment << endl;
+        // cout << "exp(log(angles.getGamma()) - log(increment)): " << exp(log(angles.getGamma()) - log(increment)) << endl;
+        MstUtils::error("Provided angles: "+MstUtils::toString(angles.getAlpha())+","+MstUtils::toString(angles.getBeta())+","+MstUtils::toString(angles.getGamma())+" result in invalid bin values: "+MstUtils::toString(alphaBin)+","+MstUtils::toString(betaBin)+","+MstUtils::toString(gammaBin),"orientationHasher::hashAngleBins()");
+    }
 }
 
 int orientationHasher::hashAngleBins(const int& alphaBin, const int& betaBin, const int& gammaBin) {
-    if ((alphaBin < 0) || (alphaBin >= numBins) || (betaBin < 0) || (betaBin >= numBins) || (gammaBin < 0) || (gammaBin >= numBins))
-     MstUtils::error("bin values invalid: "+MstUtils::toString(alphaBin)+","+MstUtils::toString(betaBin)+","+MstUtils::toString(gammaBin),"orientationHasher::hashAngleBins");
     /* Same idea as in the position hasher. The three angles still form a 3D space, which is now
     technically a 3-torus, but the fact that there is a discontinuity in the hashes doesn't matter
     as long as they're all unique. */
@@ -380,11 +413,12 @@ void frameTable::printFrameInfo(Frame* frame) {
 
 /* --- --- --- --- --- frameProbability --- --- --- --- --- */
 
-void frameProbability::setTargetResidue(int resIdx, const Structure& target) {
+void frameProbability::setTargetResidue(int resIdx, const Structure& target, bool clashCheck) {
     if (targetResDefined.find(resIdx) != targetResDefined.end()) MstUtils::error("A target residue with this index ("+MstUtils::toString(resIdx)+") has already been set","frameProbability::setTargetResidue");
     Structure targetCopy(target);
     Residue& targetRes = target.getResidue(resIdx);
     occupiedVolMap[resIdx].resize(posHasher.getNumBins(),false);
+    if (!clashCheck) return;
 
     MstTimer timer; timer.start();
 

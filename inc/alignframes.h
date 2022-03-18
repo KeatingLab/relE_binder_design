@@ -159,7 +159,7 @@ class frameDB {
         }
 
         frameDB(const frameDB& other) : frameDBPath(other.frameDBPath), readMode(other.readMode) {
-            MstUtils::assert(other.readMode, "Copying write-only frameDB file not supported");
+            // MstUtils::assert(other.readMode, "Copying write-only frameDB file not supported");
             cout << "Opening file stream for copy of frame DB: " << frameDBPath << endl;
             openFileStream();
         }

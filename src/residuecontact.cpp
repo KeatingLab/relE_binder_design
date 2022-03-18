@@ -248,6 +248,10 @@ bool checkVDWRadii::initConstants() {
     radii["VAL"]["CB"] = 1.87;
     radii["VAL"]["CG1"] = 1.87;
     radii["VAL"]["CG2"] = 1.87;
+    radii["UNK"]["N"] = 1.65;
+    radii["UNK"]["CA"] = 1.87;
+    radii["UNK"]["C"] = 1.76;
+    radii["UNK"]["O"] = 1.40;
     radii["ASX"]["N"] = 1.65;
     radii["ASX"]["CA"] = 1.87;
     radii["ASX"]["C"] = 1.76;
@@ -468,9 +472,9 @@ bool checkVDWRadii::initConstants() {
 vdwContacts::vdwContacts(vector<Residue*> S_res) {
     // By default set all residues to be checked
     setResidues(S_res,S_res);
-
     // Add each residue in the structure to the proximity search
     preparePS(S_res);
+    findAllContacts();
 }
 
 vdwContacts::vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains) {
@@ -487,6 +491,7 @@ vdwContacts::vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains) {
     if (!checkForOverlap.empty()) MstUtils::error("When providing two sets of residues, both sets must not have overlapping members","vdwContacts::vdwContacts");
     setResidues(resIVec,resJVec);
     preparePS();
+    findAllContacts();
 }
 
 vdwContacts::vdwContacts(vector<Residue*> resIVec, vector<Residue*> resJVec) {
@@ -494,6 +499,7 @@ vdwContacts::vdwContacts(vector<Residue*> resIVec, vector<Residue*> resJVec) {
     if (!checkForOverlap.empty()) MstUtils::error("When providing two sets of residues, both sets must not have overlapping members","vdwContacts::vdwContacts");
     setResidues(resIVec,resJVec);
     preparePS();
+    findAllContacts();
 }
 
 void vdwContacts::setResidues(vector<Residue*> resIVec, vector<Residue*> resJVec) {
@@ -513,34 +519,75 @@ void vdwContacts::preparePS(vector<Residue*> toAdd) {
     }
 }
 
-set<Residue*> vdwContacts::getInteractingRes(Residue* Ri) {
-    vector<Atom*> resAtoms = Ri->getAtoms();
-    set<Residue*> contacts;
-    for (Atom* Ai : resAtoms) {
-        mstreal A_maxRadius_sum = vdwR.getRadius(Ai,strictAtomName) + vdwR.maxRadius();
-        vector<int> atomsToCheck = allAtomsPS.getPointsWithin(Ai->getCoor(), 0, A_maxRadius_sum);
-        for (int atomIdx : atomsToCheck) {
-            Atom* Aj = allAtoms[atomIdx];
-            Residue* Rj = Aj->getResidue();
-            
-            if (!isContact(Ri,Rj)) continue;
-            
-            // Check if contacting, given the Aj radius
-            atomInteractionType intType = vdwR.interactionType(Ai,Aj);
-            if (intType == ATOMCONTACT) {
-                contacts.insert(Rj);
+void vdwContacts::findAllContacts() {
+    for (Residue* Ri : resISet) {
+        allInteracting[Ri] = set<Residue*>();
+        sidechainInteracting[Ri] = set<Residue*>();
+        sidechainBackboneInteracting[Ri] = set<Residue*>();
+        backboneSidechainInteracting[Ri] = set<Residue*>();
+        backboneInteracting[Ri] = set<Residue*>();
+        for (Atom* Ai : Ri->getAtoms()) {
+            // Get all nearby atoms
+            mstreal A_maxRadius_sum = upperBound*(vdwR.getRadius(Ai,strictAtomName) + vdwR.maxRadius());
+            vector<int> atomsToCheck = allAtomsPS.getPointsWithin(Ai->getCoor(), 0, A_maxRadius_sum);
+
+            // Check if nearby atom constitutes an interaction
+            for (int atomIdx : atomsToCheck) {
+                Atom* Aj = allAtoms[atomIdx];
+                Residue* Rj = Aj->getResidue();
+                
+                if (!isValid(Ri,Rj)) continue;
+                
+                // Check if contacting, given the Aj radius
+                atomInteractionType intType = vdwR.interactionType(Ai,Aj,lowerBound,upperBound);
+                if (intType == ATOMCONTACT) {
+                    // label the contact based on which atoms are interacting
+                    vdwContactType contType = classifyContact(Ai,Aj);
+                    // cout << Ri->getChainID() << Ri->getNum() << " " << Rj->getChainID() << Rj->getNum() << " ";
+                    allInteracting[Ri].insert(Rj);
+                    if (contType == SIDECHAIN) {
+                        // cout << "sidechain" << endl;
+                        sidechainInteracting[Ri].insert(Rj);
+                    } else if (contType == SIDECHAIN_BACKBONE) {
+                        // cout << "sidechain_backbone" << endl;
+                        sidechainBackboneInteracting[Ri].insert(Rj);
+                    } else if (contType == BACKBONE_SIDECHAIN) {
+                        // cout << "backbone_sidechain" << endl;
+                        backboneSidechainInteracting[Ri].insert(Rj);
+                    } else if (contType == BACKBONE) {
+                        // cout << "backbone" << endl;
+                        backboneInteracting[Ri].insert(Rj);
+                    }
+                }
             }
         }
     }
-    return contacts;
 }
 
-vector<pair<Residue*,Residue*>> vdwContacts::getInteractingRes() {
+set<Residue*> vdwContacts::getInteractingRes(Residue* Ri, vdwContactType contType) {
+    if (contType == NONE) MstUtils::error("Cannot retrieve contacts of type 'NONE'","vdwContacts::getInteractingRes");
+    if (contType == ALL) {
+        return allInteracting[Ri];
+    } else if (contType == SIDECHAIN) {
+        return sidechainInteracting[Ri];
+    } else if (contType == SIDECHAIN_BACKBONE) {
+        return sidechainBackboneInteracting[Ri];
+    } else if (contType == BACKBONE_SIDECHAIN) {
+        return backboneSidechainInteracting[Ri];
+    } else if (contType == BACKBONE) {
+        return backboneInteracting[Ri];
+    } else {
+        MstUtils::error("contType not recognized","vdwContacts::getInteractingRes");
+    }
+    return set<Residue*>(); //will never reach this
+}
+
+vector<pair<Residue*,Residue*>> vdwContacts::getInteractingResPairs(vdwContactType contType) {
     vector<pair<Residue*,Residue*>> result;
     int numContacts = 0;
     for (Residue* Ri : resISet) {
         set<Residue*> interactingRes;
-        for (Residue* Rj : getInteractingRes(Ri)) {
+        for (Residue* Rj : getInteractingRes(Ri, contType)) {
             interactingRes.insert(Rj);
             numContacts++;
         }
@@ -552,25 +599,22 @@ vector<pair<Residue*,Residue*>> vdwContacts::getInteractingRes() {
     return result;
 }
 
-map<int,set<int> > vdwContacts::getAllInteractingRes(bool verbose) {
-    map<int,set<int> > allInteracting;
+map<int,set<int> > vdwContacts::getAllInteractingRes(vdwContactType contType, bool verbose) {
+    map<int,set<int> > allInteractingData;
     int numContacts = 0;
     for (Residue* Ri : resISet) {
-        // Check if map is already populated
-        if (interacting.count(Ri) == 1) continue;
-        // If not, compute the contacts anew
         set<int> interactingResIdx;
-        for (Residue* Rj : getInteractingRes(Ri)) {
+        for (Residue* Rj : getInteractingRes(Ri, contType)) {
             interactingResIdx.insert(Rj->getResidueIndex());
             numContacts++;
         }
-        allInteracting[Ri->getResidueIndex()] = interactingResIdx;
+        allInteractingData[Ri->getResidueIndex()] = interactingResIdx;
     }
     if (verbose) cout << "In total, structure has " << numContacts << " VDW contacts" << endl;
-    return allInteracting;
+    return allInteractingData;
 }
 
-bool vdwContacts::isContact(Residue* Ri, Residue* Rj) {
+bool vdwContacts::isValid(Residue* Ri, Residue* Rj) {
     // Check if should ignore, since in the same residue
     if (Ri == Rj) return false;
 
@@ -588,27 +632,85 @@ bool vdwContacts::isContact(Residue* Ri, Residue* Rj) {
     return true;
 }
 
+vdwContacts::vdwContactType vdwContacts::classifyContact(Atom* Ai, Atom* Aj) {
+    string AiName = Ai->getName();
+    string AjName = Aj->getName();
+    bool AiBBAtom = (bbAtomNames.find(AiName) != bbAtomNames.end());
+    bool AjBBAtom = (bbAtomNames.find(AjName) != bbAtomNames.end());
+    if ((!AiBBAtom) & (!AjBBAtom)) {
+        return vdwContactType::SIDECHAIN;
+    } else if ((!AiBBAtom) & AjBBAtom) {
+        return vdwContactType::SIDECHAIN_BACKBONE;
+    } else if (AiBBAtom & (!AjBBAtom)) {
+        return vdwContactType::BACKBONE_SIDECHAIN;
+    } else if (AiBBAtom & AiBBAtom) {
+        return vdwContactType::BACKBONE;        
+    }
+    return vdwContactType::NONE; //should never reach this
+}
+
 /* --- --- --- --- --- potentialContacts --- --- --- --- --- */
 
-potentialContacts::potentialContacts(vector<Residue*> _targetResidues, vector<Residue*> _binderResidues, bool _sameChain, bool strict) {
+void potentialContacts::setTargetResidues(vector<Residue*> _targetResidues) {
     targetResidues = _targetResidues;
-    binderResidues = _binderResidues;
-    sameChain = _sameChain;
-
+    targetCA.clear();
     for (Residue* R : targetResidues) {
         targetCA.push_back(R->findAtom("CA"));
         string aa3 = R->getName();
         if (!SeqToolsExtension::AAinSet(aa3)) {
-            aa3 = SeqToolsExtension::findEquivalentResidueInAlphabet(aa3,strict);
+            aa3 = SeqToolsExtension::findEquivalentResidueInAlphabet(aa3,true);
             if (aa3 == "") continue;
         }
         res_t aaIdx = SeqTools::aaToIdx(aa3);
         targetResidueAAIdentity[R] = aaIdx;
     }
-    for (Residue* R : binderResidues) binderCA.push_back(R->findAtom("CA",strict));
+}
+
+void potentialContacts::setBinderResidues(vector<Residue*> _binderResidues) {
+    binderResidues = _binderResidues;
+    binderCA.clear();
+    for (Residue* R : binderResidues) binderCA.push_back(R->findAtom("CA",true));
+}
+
+void potentialContacts::load2DProbabilityDensities(string pathToJSON) {
+    cout << "Loading 2D probability densities" << endl;
+    using json = nlohmann::json;
+
+    fstream fin;
+    MstUtils::openFile(fin,pathToJSON,fstream::in);
+    json j_data = json::parse(fin);
+
+    // Access data from json file and organize into 2D histograms
+    cout << "Loading " << j_data["histList"].size() << " histograms" << endl;
+    for (int i = 0; i < j_data["histList"].size(); i++) {
+        string contType = j_data["histList"][i]["contType"].get<string>();
+        string AA3 = j_data["histList"][i]["AA3"].get<string>();
+        string var1 = j_data["histList"][i]["var1"].get<string>();
+        int var1NBins = j_data["histList"][i]["nBins"][0].get<int>();
+        int var2NBins = j_data["histList"][i]["nBins"][1].get<int>();
+        mstreal var1min = j_data["histList"][i]["var1Range"][0].get<int>();
+        mstreal var1max = j_data["histList"][i]["var1Range"][1].get<int>();
+        mstreal var2min = j_data["histList"][i]["var2Range"][0].get<int>();
+        mstreal var2max = j_data["histList"][i]["var2Range"][1].get<int>();
+
+        res_t aaIdx = SeqTools::aaToIdx(AA3);
+        twoDimHistogram hist(var1NBins,var2NBins,var1min,var1max,var2min,var2max);
+        hist.setCounts(j_data["histList"][i]["countsArray"]);
+
+        if (contType == "vdwContactSS") {
+            sidechainSidechainContactProbabilityDensity[aaIdx] = hist;
+            // sidechainSidechainContactProbabilityDensity[aaIdx].reportHistogram();
+        } else if (contType == "vdwContactSB") {
+            sidechainBackboneContactProbabilityDensity[aaIdx] = hist;
+            // sidechainBackboneContactProbabilityDensity[aaIdx].reportHistogram();
+        } else MstUtils::error("contType = "+contType+" not recognized","potentialContacts::load2DProbabilityDensities");
+    }
+    loadedPDensity = true;
 }
 
 vector<pair<Residue*,Residue*>> potentialContacts::getContacts(bool simpleDistanceCheck) {
+    if (targetResidues.empty() || binderResidues.empty()) MstUtils::error("Must define target and binder residues before searching for potential contacts","potentialContacts::getContacts");
+    cout << "Find contacts mode simple? " << simpleDistanceCheck << endl;
     vector<pair<Residue*,Residue*>> contacts;
     for (Atom* targetA : targetCA) {
         CartesianPoint targetCoor = targetA->getCoor();
@@ -618,14 +720,59 @@ vector<pair<Residue*,Residue*>> potentialContacts::getContacts(bool simpleDistan
             mstreal distance = targetCoor.distance(binderCoor);
             Residue* binderRes = binderA->getResidue();
             if (distance > defaultDistanceToCheck) continue;
-            if (sameChain && ignoreContact(targetRes,binderRes)) continue; 
-            else if (simpleDistanceCheck) contacts.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
+            if (sameChain && ignoreContact(targetRes,binderRes)) continue;
+            if (simpleDistanceCheck) contacts.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
             else {
-                cout << "Not defined!" << endl;
+                if (!loadedPDensity) MstUtils::error("Must load probability densities to find potential contacts","potentialContacts::getContacts");
+                bool SSContact = isPotentialSSContact(targetRes,binderRes);
+                bool SBContact = isPotentialSBContact(targetRes,binderRes,true);
+                bool BBContact = false;
+                // Based on looking at data, there is never an interaction if Ca are more than 8 Å apart
+                if (distance <= 8.0) {
+                    BBContact = isPotentialBBContact(targetRes,binderRes);
+                }
+                if (SSContact || SSContact || BBContact) contacts.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
             }
         }
     }
     return contacts;
+}
+
+bool potentialContacts::isPotentialSSContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh) {
+    res_t aaIdx = SeqTools::aaToIdx(Ri->getName());
+    if (sidechainSidechainContactProbabilityDensity.find(aaIdx) == sidechainSidechainContactProbabilityDensity.end()) return false;
+    mstreal normalizedCbDistance = getNormalizedCbDistance(Ri,Rj);
+    mstreal CaDistance = getCaDistance(Ri,Rj);
+    if (sidechainSidechainContactProbabilityDensity.count(aaIdx)==0) return false;
+    mstreal density = sidechainSidechainContactProbabilityDensity[aaIdx].getDensity(normalizedCbDistance,CaDistance);
+    return density >= pDensityThresh;
+}
+
+bool potentialContacts::isPotentialSBContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh, bool checkReverseDirection) {
+    bool SB = false, BS = false;
+    res_t aaIdx = SeqTools::aaToIdx(Ri->getName());
+    res_t RjaaIdx = SeqTools::aaToIdx(Rj->getName());
+    if (sidechainBackboneContactProbabilityDensity.find(aaIdx) == sidechainBackboneContactProbabilityDensity.end()) return false;
+    mstreal CaCbtoRiCaRjCaAngle = getCaCbtoRiCaRjCaAngle(Ri,Rj);
+    mstreal RjCaCbtoRjCaRiCaAngle = getCaCbtoRiCaRjCaAngle(Rj,Ri); //horrendous notation, but it's just checking the reverse direction
+    mstreal CaDistance = getCaDistance(Ri,Rj);
+    if (sidechainBackboneContactProbabilityDensity.count(aaIdx)>0) SB = sidechainBackboneContactProbabilityDensity[aaIdx].getDensity(CaCbtoRiCaRjCaAngle,CaDistance) >= pDensityThresh;
+    else SB = false;
+    if (sidechainBackboneContactProbabilityDensity.count(RjaaIdx)>0) BS = sidechainBackboneContactProbabilityDensity[RjaaIdx].getDensity(RjCaCbtoRjCaRiCaAngle,CaDistance) >= pDensityThresh;
+    else BS = false;
+    if (checkReverseDirection) return (SB || BS);
+    else return SB;
+}
+
+bool potentialContacts::isPotentialBBContact(Residue* Ri, Residue* Rj) {
+    for (string RiAName : bbAtomNames) {
+        Atom* RiAtom = Ri->findAtom(RiAName);
+        for (string RjAName : bbAtomNames) {
+            Atom* RjAtom = Rj->findAtom(RjAName);
+            if (checkRad.contact(RiAtom,RjAtom,0.7,1.2)) return true;
+        }
+    }
+    return false;
 }
 
 CartesianPoint potentialContacts::getCbFromRes(Residue* R) {
@@ -642,6 +789,13 @@ CartesianPoint potentialContacts::getCbFromRes(Residue* R) {
     return Cb;
 }
 
+mstreal potentialContacts::getCaDistance(Residue* Ri, Residue* Rj) {
+    CartesianPoint RiCa = Ri->findAtom("CA")->getCoor();
+    CartesianPoint RjCa = Rj->findAtom("CA")->getCoor();
+    mstreal CaDistance = RiCa.distance(RjCa);
+    return CaDistance;
+}
+
 mstreal potentialContacts::getNormalizedCbDistance(Residue* Ri, Residue* Rj) {
     // Get all vectors
     CartesianPoint RiCa = Ri->findAtom("CA")->getCoor();
@@ -650,7 +804,7 @@ mstreal potentialContacts::getNormalizedCbDistance(Residue* Ri, Residue* Rj) {
     CartesianPoint RjCb = getCbFromRes(Rj);
 
     // Compute distance between Ca and Cb atoms
-    mstreal CaDistance = RiCa.distance(RjCa);
+    mstreal CaDistance = getCaDistance(Ri,Rj);
     mstreal CbDistance = RiCb.distance(RjCb);
 
     // Compute the bounds (min and max Cb distance possible)
@@ -663,10 +817,20 @@ mstreal potentialContacts::getNormalizedCbDistance(Residue* Ri, Residue* Rj) {
     return (CbDistance - minDistance) / (maxDistance - minDistance);
 }
 
-// void potentialContacts::writeBackboneAndCb(string name) {
-//     vector
-//     for ()
-// }
+mstreal potentialContacts::getCaCbtoRiCaRjCaAngle(Residue* Ri, Residue* Rj) {
+    // get vector from Ri Ca to Cb
+    CartesianPoint RiCb = getCbFromRes(Ri);
+    CartesianPoint RiCa = Ri->findAtom("CA")->getCoor();
+    CartesianPoint RiCaCb = RiCb - RiCa;
+
+    // get vector from Ri Ca to Rj Ca
+    CartesianPoint RjCa = Rj->findAtom("CA")->getCoor();
+    CartesianPoint RiCaRjCa = RjCa - RiCa;
+
+    // compute the cosine of the angle between the vectors
+    return RiCaCb.dot(RiCaRjCa) / (RiCaCb.norm() * RiCaRjCa.norm());
+}
+
 
 bool potentialContacts::ignoreContact(Residue* Ri, Residue* Rj) {
     // Check if should ignore, because is the same residue

@@ -10,6 +10,9 @@
 #include "freesasaext.h"
 #include "utilities.h"
 
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
+
 // Craig's vdwRadii functions
 enum atomInteractionType { ATOMCLASH = 0, ATOMCONTACT = 1, NOINTERACTION = 2};
 
@@ -40,32 +43,36 @@ private:
 
 class vdwContacts {
     /* A light-weight class that can identify pairs of residues that make VDW interactions (through
-    their sidechains or other atoms).
-    
-    This class has two uses: 
+    their sidechains or other atoms). This class has two uses: 
     1) The user wants to identify all contacts within a structure
     2) The user wants to identify all contacts between two (non-overlapping) sets of residues
-
     The use case is determined by the constructor that is selected. Admittedly it is a little weird to handle the two
     situations this way, but it will work for now.
-     
+
+    Note that the contact definitions are "low-resolution". There is no attempt to quantify whether an interaction is energetically
+    favorable or anything like that, all a "contact" means is that given the atomic coordinates provided, two residues are
+    in close enough proximity for their heavy atoms to directly influence one another. This is probably reasonable when looking
+    at experimentally determined structures, but whenever a designed structure is being assessed, this defintion should be
+    paired with some kind of potential that more carefully assesses whether the interaction has a favorable enthalpy.
      */
 public:
+    enum vdwContactType {NONE, ALL, SIDECHAIN, SIDECHAIN_BACKBONE, BACKBONE_SIDECHAIN, BACKBONE};
+
     vdwContacts(vector<Residue*> S_res);
     vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains);
     vdwContacts(vector<Residue*> resIVec, vector<Residue*> resJVec);
     
-    set<Residue*> getInteractingRes(Residue* Ri);
-
-    vector<pair<Residue*,Residue*>> getInteractingRes();
-
-    map<int,set<int> > getAllInteractingRes(bool verbose = false);
+    set<Residue*> getInteractingRes(Residue* Ri, vdwContactType contType = ALL);
+    vector<pair<Residue*,Residue*>> getInteractingResPairs(vdwContactType contType = ALL);
+    map<int,set<int>> getAllInteractingRes(vdwContactType contType = ALL, bool verbose = false);
     
 protected:
     void setResidues(vector<Residue*> resIVec, vector<Residue*> resJVec);
     void preparePS(vector<Residue*> toAdd = {});
+    void findAllContacts();
 
-    bool isContact(Residue* Ri, Residue* Rj);
+    bool isValid(Residue* Ri, Residue* Rj);
+    vdwContactType classifyContact(Atom* Ai, Atom* Aj);
     
 private:
     vector<Atom*> allAtoms;
@@ -75,16 +82,18 @@ private:
         
     set<Residue*> resISet;
     set<Residue*> resJSet;
-    map<Residue*,set<Residue*>> interacting;
+    map<Residue*,set<Residue*>> allInteracting; //union of interacting residue pairs
+    map<Residue*,set<Residue*>> sidechainInteracting;
+    map<Residue*,set<Residue*>> sidechainBackboneInteracting;
+    map<Residue*,set<Residue*>> backboneSidechainInteracting;
+    map<Residue*,set<Residue*>> backboneInteracting;
     
     int ignoreDistance = 8; //interacting residues this close in the chain will be ignored
-    mstreal adjustment = 1.0; //makes the interaction check more/less permissive
+    mstreal lowerBound = 0.7; //adjust the interaction check 
+    mstreal upperBound = 1.2; //adjust the interaction check
     bool strictAtomName = false;
-};
 
-struct potentialContactsParams {
-    vector<mstreal> CAdistanceToCheck; // each residue type has a different distance
-    vector<mstreal> decayRate;
+    set<string> bbAtomNames = {"N","CA","C","O"};
 };
 
 class potentialContacts {
@@ -95,17 +104,59 @@ class potentialContacts {
      */
 
     public:
-        potentialContacts(vector<Residue*> _targetResidues, vector<Residue*> _binderResidues, bool sameChain = false, bool strict = true);
+        potentialContacts() {};
+
+        potentialContacts(vector<Residue*> _targetResidues, vector<Residue*> _binderResidues) {
+            setTargetResidues(_targetResidues);
+            setBinderResidues(_binderResidues);
+        }
+
+        void load2DProbabilityDensities(string pathToJSON);
+
+        void setTargetResidues(vector<Residue*> _targetResidues);
+        void setBinderResidues(vector<Residue*> _binderResidues);
 
         vector<pair<Residue*,Residue*>> getContacts(bool simpleDistanceCheck = false);
 
+        bool isPotentialSSContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.05);
+        bool isPotentialSBContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.05, bool checkReverseDirection = false);
+        bool isPotentialBBContact(Residue* Ri, Residue* Rj);
+
+        /**
+         * @brief Constructs a idealized Cb coordinates given the backbone atoms of a residue
+         * 
+         * @param R A residue with all backbone heavy atoms
+         * @return CartesianPoint Coordinates of idealized Cb atom
+         */
         CartesianPoint getCbFromRes(Residue* R);
+
+        mstreal getCaDistance(Residue* Ri, Residue* Rj);
+
+        /**
+         * @brief Provides a measure of how much the Ca-Cb vectors of two residues are pointed at one another
+         * 
+         * @param Ri 
+         * @param Rj 
+         * @return mstreal 
+         */
         mstreal getNormalizedCbDistance(Residue* Ri, Residue* Rj);
+
+        /**
+         * @brief Provides a measure of how much the Ca-Cb vector of Ri points at the Ca atom of Rj. Note that this is a directional property. f(x,y) != f(y,x)
+         * 
+         * @param Ri The residue that will be used to construct a Ca-Cb vector
+         * @param Rj The Ca atom of this residue will be used to create a RiCa-RjCa vector
+         * @return mstreal 
+         */
+        mstreal getCaCbtoRiCaRjCaAngle(Residue* Ri, Residue* Rj);
 
     protected:
         bool ignoreContact(Residue* Ri, Residue* Rj);
 
     private:
+        set<string> bbAtomNames = {"N","CA","C","O"};
+        checkVDWRadii checkRad;
+
         vector<Residue*> targetResidues;
         vector<Residue*> binderResidues;
 
@@ -121,7 +172,11 @@ class potentialContacts {
         mstreal azimuthalAngle = 87.948;
 
         map<Residue*,res_t> targetResidueAAIdentity;
-        mstreal defaultDistanceToCheck = 10.0;
+        mstreal defaultDistanceToCheck = 15.0;
+
+        bool loadedPDensity = false;
+        map<res_t,twoDimHistogram> sidechainSidechainContactProbabilityDensity;
+        map<res_t,twoDimHistogram> sidechainBackboneContactProbabilityDensity;
 
         bool sameChain; // if true, will check whether nearby residues are in the same chain
         int ignoreDistance = 8; //interacting residues this close in the chain will be ignored
