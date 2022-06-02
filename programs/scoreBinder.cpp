@@ -18,8 +18,8 @@ int main(int argc, char *argv[]) {
     op.addOption("binderChains","The binder chain ID(s) delimited by '_', e.g. '0_1'. If in --targetPDB mode, will be removed from the structure before scoring",false);
     op.addOption("targetChains","--complexPDB mode only. The protein chain(s) delimited by '_', e.g. 'A_B'",false);
     op.addOption("targetPDB","A PDB file defining the structure of the protein target. Must have a defined sequence.",false);
-    op.addOption("binderList","--targetPDB mode only. A file where each line is the path to a binder structure to be scored",false);
-    op.addOption("binderBin","--targetPDB mode only. A seed binary file.",false);
+    op.addOption("binderList","A file where each line is the path to a binder structure to be scored",false);
+    op.addOption("binderBin","A seed binary file.",false);
     op.addOption("binderBinSubset","--targetPDB and --binderBin mode only. A list of structure names that will be extracted from the seed binary file and scored",false);
     op.addOption("vdwContacts","If provided, will define the interface using VDW contacts, otherwise will use CB definition. Not compatible with --targetPDB mode",false);
     op.addOption("distanceCutoff","The distance cutoff that is applied when determining whether a putative match has the proper position (default = 0.5 Å)",false);

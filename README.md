@@ -8,15 +8,17 @@ A suite of C++ programs for *de novo* design of protein-binding peptides or mini
 
 ### Dependencies
 
-Before building `interfaceGenerator` programs, you must install the following dependencies
+Before building `interfaceGenerator` programs, you must download the following dependencies
 
 - "Mosaist" or [MST](https://github.com/Grigoryanlab/Mosaist), a library for working with protein structures and sequences.
 
-- [FreeSASA](https://github.com/mittinatten/freesasa), for calculating the solvent accessible surface area of biomolecules.
+- [FreeSASA](https://github.com/mittinatten/freesasa), for calculating the solvent accessible surface area of biomolecules. 
 
 - [JSON](https://github.com/nlohmann/json), for working with JSON formatted files.
 
-Once these are built on your system, edit the `makefile` to provide the paths to their respective installation directories. For example, if each of these has been cloned/installed in the same parent directory containing interfaceGenerator, then the DIR variables would be set as follows:
+You will need to build MST according to the instructions provided with the repo. FreeSASA and JSON do not need to be compiled separately.
+
+Edit the `makefile` to provide the paths to their respective installation directories. For example, if each of these has been cloned/installed in the same parent directory containing interfaceGenerator, then the DIR variables would be set as follows:
 
 ```makefile
 MSTDIR = ../MST
@@ -49,6 +51,4 @@ Generate short segments of protein backbone, i.e. 'interface seeds', around the 
 
 ### `scoreBinder`
 
-Scores one, or many, binding structures relative to a target protein. The score is computed per interface contact and is equal to the log of the probability of the binder residue, given the target residue.:q
-
-
+Scores one, or many, binding structures relative to a target protein. The score is computed per interface contact and is equal to the log of the probability of the binder residue, given the target residue.
