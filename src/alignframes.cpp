@@ -59,22 +59,18 @@ void proteinFrameDB::readDBFile(string dbPath)
         // targetSource.push_back(targetInfo(dbFile, targetFileType::BINDATABASE, loc, memSave));
         int L = targetStruct.residueSize();
         addTarget(targetAugS);
-        while (ifs.peek() != EOF)
-        {
+        while (ifs.peek() != EOF) {
             MstUtils::readBin(ifs, sect);
-            if (sect == 'B')
-            {
-                MstUtils::readBin(ifs, name); // ignore name for now, but could use in the future
-                map<int, set<int>> &vals = vdwContacts[ti];
+            if (sect == 'B') {
+                MstUtils::readBin(ifs, name);
+                if ((name != "vdw")&&(name != "vdwBB")) MstUtils::error("Section with name: "+name+" not recognized","proteinFrameDB::readDBFile");
+                map<int, set<int>> &vals = (name == "vdw") ? vdwContacts[ti] : vdwContactsBB[ti];
                 int ri, rj, N, n;
-                mstreal cd;
                 MstUtils::readBin(ifs, N);
-                for (int i = 0; i < N; i++)
-                {
+                for (int i = 0; i < N; i++) {
                     MstUtils::readBin(ifs, ri);
                     MstUtils::readBin(ifs, n);
-                    for (int j = 0; j < n; j++)
-                    {
+                    for (int j = 0; j < n; j++) {
                         MstUtils::readBin(ifs, rj);
                         vals[ri].insert(rj);
                     }
@@ -128,7 +124,7 @@ void proteinFrameDB::writeDBFile(string dbPath)
     ofs.close();
 }
 
-const set<int>& proteinFrameDB::getContacts(int target_i, int res_i) {
+const set<int>& proteinFrameDB::getContacts(int target_i, int res_i, bool BBint) {
     if ((target_i < 0) || (target_i >= targets.size())) MstUtils::error("Provided value " + MstUtils::toString(target_i) + " is out of range of targets: (0," + MstUtils::toString(targets.size() - 1), "proteinFrameDB::getContacts");
     if ((res_i < 0) || (res_i >= targets[target_i]->residueSize())) MstUtils::error("Provided value " + MstUtils::toString(res_i) + " is out of range of residues: (0," + MstUtils::toString(targets[target_i]->residueSize() - 1), "proteinFrameDB::getContacts");
     return vdwContacts[target_i][res_i];

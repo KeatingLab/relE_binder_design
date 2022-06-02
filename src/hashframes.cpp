@@ -358,8 +358,10 @@ int frameTable::countSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut
 
 set<mobileFrame*> frameTable::findSimilarFrames(Frame* frame, mstreal distCut, mstreal angCut, vector<bool>* posHashToIgnore) {
     mstreal radCut = M_PI*angCut/(180.0); //rot hasher uses radians
-    cout << "Searching for matches to query frame: ";
-    printFrameInfo(frame);
+    if (verbose) {
+        cout << "Searching for matches to query frame: ";
+        printFrameInfo(frame);
+    }
     vector<int> posNeigbourHashes = posHasher.region(frame,distCut);
     vector<int> rotNeighborHashes = rotHasher.region(frame,radCut);
     vector<mobileFrame*> posNeighbors; vector<mobileFrame*> rotNeighbors;
@@ -375,6 +377,15 @@ set<mobileFrame*> frameTable::findSimilarFrames(Frame* frame, mstreal distCut, m
     }
     // cout << "Found " << rotNeighborHashes.size() << " frames within angle cutoff" << endl;
     return verify(frame,posNeighbors,distCut,rotNeighbors,angCut);
+}
+
+vector<mstreal> frameTable::findBinderResAADist(Frame* frame, mstreal distCut, mstreal angCut, mstreal pseudocount) {
+    // check if frame overlaps with the volume occupied by the protein
+    int hash = posHasher.hashFrame(frame);
+
+    // find the number of matches to the frame in the DB and normalize
+    set<mobileFrame*> matches = findSimilarFrames(frame, distCut, angCut);
+    return aaDistFromMobileFrames(matches,pseudocount);
 }
 
 set<mobileFrame*> frameTable::verify(Frame* queryFrame, const vector<mobileFrame*>& distNeighbors, mstreal distCut, const vector<mobileFrame*>& rotNeighbors, mstreal angCut) {
@@ -398,6 +409,19 @@ set<mobileFrame*> frameTable::verify(Frame* queryFrame, const vector<mobileFrame
     // find the intersection of the two sets
     set_intersection(pos.begin(),pos.end(),rot.begin(),rot.end(),std::inserter(result,result.begin()));
     return result;
+}
+
+vector<mstreal> frameTable::aaDistFromMobileFrames(set<mobileFrame*> frames, mstreal pseudocount) {
+    vector<mstreal> aaDist;
+    for (string aa : SeqToolsExtension::getAANames()) {
+        res_t aaIdx = SeqTools::aaToIdx(aa);
+        mstreal count = pseudocount;
+        for (mobileFrame* frame : frames) {
+            if (frame->getResJIndex() == aaIdx) count++;
+        }
+        aaDist.push_back(count);
+    }
+    return aaDist;
 }
 
 void frameTable::printFrameInfo(Frame* frame) {
@@ -479,24 +503,24 @@ pair<int,int> frameProbability::findInteractingFrameProbability(Frame* frame, in
     return pair<int,int>(numMatches,normalizingConstant[targetResIdx]);
 }
 
-vector<mstreal> frameProbability::findBinderResAADist(Frame* frame, int targetResIdx, mstreal pseudocount) {
-    // check if frame overlaps with the volume occupied by the protein
-    int hash = posHasher.hashFrame(frame);
+// vector<mstreal> frameProbability::findBinderResAADist(Frame* frame, int targetResIdx, mstreal pseudocount) {
+//     // check if frame overlaps with the volume occupied by the protein
+//     int hash = posHasher.hashFrame(frame);
 
-    // find the number of matches to the frame in the DB and normalize
-    set<mobileFrame*> matches = findSimilarFrames(frame, distCut, oriCut, &(occupiedVolMap[targetResIdx]));
-    return aaDistFromMobileFrames(matches,pseudocount);
-}
+//     // find the number of matches to the frame in the DB and normalize
+//     set<mobileFrame*> matches = findSimilarFrames(frame, distCut, oriCut, &(occupiedVolMap[targetResIdx]));
+//     return aaDistFromMobileFrames(matches,pseudocount);
+// }
 
-vector<mstreal> frameProbability::aaDistFromMobileFrames(set<mobileFrame*> frames, mstreal pseudocount) {
-    vector<mstreal> aaDist;
-    for (string aa : SeqToolsExtension::getAANames()) {
-        res_t aaIdx = SeqTools::aaToIdx(aa);
-        mstreal count = pseudocount;
-        for (mobileFrame* frame : frames) {
-            if (frame->getResJIndex() == aaIdx) count++;
-        }
-        aaDist.push_back(count);
-    }
-    return aaDist;
-}
+// vector<mstreal> frameProbability::aaDistFromMobileFrames(set<mobileFrame*> frames, mstreal pseudocount) {
+//     vector<mstreal> aaDist;
+//     for (string aa : SeqToolsExtension::getAANames()) {
+//         res_t aaIdx = SeqTools::aaToIdx(aa);
+//         mstreal count = pseudocount;
+//         for (mobileFrame* frame : frames) {
+//             if (frame->getResJIndex() == aaIdx) count++;
+//         }
+//         aaDist.push_back(count);
+//     }
+//     return aaDist;
+// }

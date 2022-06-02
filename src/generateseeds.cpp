@@ -56,14 +56,11 @@ void seedBinaryFile::scanFilePositions() {
 }
 
 Structure *seedBinaryFile::getStructureNamed(string name) {
-    if (!readMode) MstUtils::error("readMode not supported in write mode","seedBinaryFile::readMode");
+    if (!readMode) MstUtils::error("getStructureNamed not supported in write mode","seedBinaryFile::getStructureNamed");
     if (_filePositions.size() == 0) {
         scanFilePositions();
     }
-    if (_filePositions.count(name) == 0) {
-        cout << "Structure " << name << " doesn't exist" << endl;
-        return nullptr;
-    }
+    if (_filePositions.count(name) == 0) MstUtils::error("Structure "+name+" doesn't exist","seedBinaryFile::getStructureName()");
     fs.seekg(_filePositions[name], fs.beg);
     return readNextFileSection(false).first;
 }
@@ -136,13 +133,18 @@ vector<string> seedBinaryFile::getStructureNames() {
 seedGenerator::seedGenerator(const Structure& _target, string fasstDBPath, seedGenParams _params) : target(_target), params(_params) {
     targetName = MstSys::splitPath(target.getName(),1);
 
+    defineBindingSiteAsSurfaceRes();
+
     for (Residue* R : target.getResidues()) {
-        if (RotamerLibrary::hasFullBackbone(R)) {
+        if (find(bindingSite.begin(),bindingSite.end(),R) == bindingSite.end()) {
+            vector<Atom*> resAtoms = R->getAtoms();
+            targetBackboneAtoms.insert(targetBackboneAtoms.end(),resAtoms.begin(),resAtoms.end());
+        } else if (RotamerLibrary::hasFullBackbone(R)) {
             vector<Atom*> resBBAtoms = RotamerLibrary::getBackbone(R);
             targetBackboneAtoms.insert(targetBackboneAtoms.end(),resBBAtoms.begin(),resBBAtoms.end());
         }
     }
-    targetBackbonePS = ProximitySearch(AtomPointerVector(targetBackboneAtoms),1.5);
+    targetAtomsPS = ProximitySearch(AtomPointerVector(targetBackboneAtoms),1.5);
 
     cout << "Load FASSTDB (" << fasstDBPath << ") without sidechains" << endl;
     timer.start();
@@ -151,7 +153,7 @@ seedGenerator::seedGenerator(const Structure& _target, string fasstDBPath, seedG
     cout << "Done took " << timer.getDuration() << " seconds to load DB" << endl;
 }
 
-void seedGenerator::setBindingSite(mstreal rSASAthresh) {
+void seedGenerator::defineBindingSiteAsSurfaceRes(mstreal rSASAthresh) {
     bindingSite.empty();
 
     sasaCalculator calc(target);
@@ -160,7 +162,7 @@ void seedGenerator::setBindingSite(mstreal rSASAthresh) {
     for (auto it : resSASA) {
         if (it.second > rSASAthresh) bindingSite.push_back(it.first);
     }
-    cout << "Found " << bindingSite.size() << " residues with a relative SASA threshold of " << rSASAthresh << endl;
+    cout << "Found " << bindingSite.size() << " surface residues with a relative SASA threshold of " << rSASAthresh << endl;
 }
 
 string seedGenerator::generateSeeds() {
@@ -225,10 +227,12 @@ void seedGenerator::findStructuralMatches() {
         F.setMaxNumMatches(params.maxNumMatches);
         F.options().unsetSequenceConstraints();
 
-        fasstSeqConstSimple seqConst(1);
-        cout << "cenResIdxInFrag: " << fD.cenResIdxInFrag << endl;
-        seqConst.addConstraint(0,fD.cenResIdxInFrag,{fD.fragCenResInParent->getName()});
-        F.options().setSequenceConstraints(seqConst);
+        if (params.seqConst) {
+            cout << "Set a sequence constraint before searching the fragment..." << endl;
+            fasstSeqConstSimple seqConst(1);
+            seqConst.addConstraint(0,fD.cenResIdxInFrag,{fD.fragCenResInParent->getName()});
+            F.options().setSequenceConstraints(seqConst);
+        }
 
         // search
         cout << "Searching fragment: " << fD.getName() << endl;
@@ -277,6 +281,8 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
                 Chain* seedChain = seed->appendChain("0",false);
                 int resNum = 1;
                 for (int i = start; i <= end; i++) {
+                    Residue* targetR = &target->getResidue(i);
+                    if (!RotamerLibrary::hasFullBackbone(targetR)) MstUtils::error("Residue "+MstUtils::toString(targetR->getResidueIndex())+" from target PDB "+MstUtils::toString(sol.getTargetIndex())+" is missing a backbone atom","seedGenerator::generateSeedsFromMatches");
                     Residue* Rcopy = new Residue(target->getResidue(i));
                     Rcopy->setNum(resNum);
                     seedChain->appendResidue(Rcopy);
@@ -319,7 +325,7 @@ bool seedGenerator::seedTargetClash(Structure* seed) {
     int checkDistance = checker.maxSumRadii();
     for (Residue* R : seed->getChainByID("0")->getResidues()) {
         for (Atom* A : R->getAtoms()) {
-            vector<int> nearbyAtomIdx = targetBackbonePS.getPointsWithin(A->getCoor(),0,checkDistance);
+            vector<int> nearbyAtomIdx = targetAtomsPS.getPointsWithin(A->getCoor(),0,checkDistance);
             // now check if any of these nearby atoms are bona-fide clashes
             for (int atomIdx : nearbyAtomIdx) {
                 if (checker.clash(A,*targetBackboneAtoms[atomIdx])) return true;

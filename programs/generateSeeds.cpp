@@ -15,6 +15,7 @@ int main(int argc, char *argv[]) {
     op.addOption("wholeSurface","--complexPDB mode only. If specified, will generate seeds around the whole surface, not just the site that the binder is interacting with",false);
     op.addOption("numMatches","Find up to this many matches per binding site fragment (if more are found, take the lowest RMSD matches) (default = 1000)",false);
     op.addOption("fasstDB","A path to a structure database that is compatible with FASST",true);
+    op.addOption("seqConst","If provided, constrain the matches to the binding site to those with the same central amino acid");
     op.setOptions(argc,argv);
 
     if (!(op.isGiven("targetPDB"))&&!(op.isGiven("complexPDB") && op.isGiven("binderChains"))) MstUtils::error("Must provide either --targetPDB or --complexPDB and --binderChains");
@@ -25,19 +26,22 @@ int main(int argc, char *argv[]) {
     string fasstDBPath = op.getString("fasstDB");
     int numMatches = op.getInt("numMatches",1000);
     bool wholeSurface = op.isGiven("wholeSurface");
+    bool seqConst = op.isGiven("seqConst");
+
+    seedGenParams params; 
+    params.maxNumMatches = numMatches;
+    params.seqConst = seqConst;
 
     // generate seeds
     string binPath, targetName;
     if (targetPDB != "") {
-        Structure target = Structure(targetPDB);
+        Structure target = Structure(targetPDB,"SKIPHETERO|ALLOW ILE CD1");
 
-        seedGenParams params; params.maxNumMatches = numMatches;
         seedGenerator seedGen(target,fasstDBPath,params);
-        seedGen.setBindingSite(0.1);
         binPath = seedGen.generateSeeds();
         targetName = seedGen.getTargetName();
     } else {
-        Structure complex(complexPDB);
+        Structure complex(complexPDB,"SKIPHETERO|ALLOW ILE CD1");
         Structure target = complex;
 
         // get binder/target chains
@@ -67,12 +71,9 @@ int main(int argc, char *argv[]) {
         // remove binder chain(s)
         for (Chain* C : binderChains) target.deleteChain(C);
 
-        seedGenParams params; params.maxNumMatches = numMatches;
         seedGenerator seedGen(target,fasstDBPath,params);
 
-        if (wholeSurface) {
-            seedGen.setBindingSite(0.10);
-        } else {
+        if (!wholeSurface) {
             seedGen.setBindingSite(bindingSiteRes);
         }
 

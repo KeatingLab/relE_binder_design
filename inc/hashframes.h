@@ -111,7 +111,7 @@ class orientationHasher {
 
 class frameTable {
     public:
-        frameTable(boundingBox _bbox, mstreal distIncrement, mstreal numRotBins) : posHasher(_bbox,distIncrement), rotHasher(numRotBins) {
+        frameTable(boundingBox _bbox, mstreal distIncrement, mstreal numRotBins, bool _verbose = false) : posHasher(_bbox,distIncrement), rotHasher(numRotBins), verbose(_verbose) {
             posLookupTable.resize(posHasher.getNumBins());
             rotLookupTable.resize(rotHasher.getNumBinsTotal());
         }
@@ -139,21 +139,27 @@ class frameTable {
         int getNumFramesInPosBin(int hash) {return posLookupTable[hash].size();}
         int getTotalNumFramesInTable() {return allFrames.size();}
 
+        vector<mstreal> findBinderResAADist(Frame* frame, mstreal distCut, mstreal angCut, mstreal pseudocount = 1.0);
+
     protected:
         set<mobileFrame*> verify(Frame* queryFrame, const vector<mobileFrame*>& distNeighbors, mstreal distCut, const vector<mobileFrame*>& rotNeighbors, mstreal angCut);
 
+        vector<mstreal> aaDistFromMobileFrames(set<mobileFrame*> frames, mstreal pseudocount);
+
         positionHasher posHasher;
         orientationHasher rotHasher;
-    private:
 
+    private:
         vector<mobileFrame*> allFrames;
         vector<vector<mobileFrame*> > posLookupTable;
         vector<vector<mobileFrame*> > rotLookupTable;
+
+        bool verbose;
 };
 
 class frameProbability : public frameTable {
     public:
-        frameProbability(boundingBox _bbox, mstreal distIncrement, mstreal numRotBins) : frameTable(_bbox, distIncrement, numRotBins) {}
+        frameProbability(boundingBox _bbox, mstreal distIncrement, mstreal numRotBins, bool verbose = false) : frameTable(_bbox, distIncrement, numRotBins, verbose) {}
 
         void setSearchParams(mstreal _distCut, mstreal _oriCut) {
             distCut = _distCut;
@@ -164,10 +170,10 @@ class frameProbability : public frameTable {
         void setTargetResidue(int resIdx, const Structure& target, bool clashCheck = true);
 
         pair<int,int> findInteractingFrameProbability(Frame* frame, int targetResIdx);
-        vector<mstreal> findBinderResAADist(Frame* frame, int targetResIdx, mstreal pseudocount = 1.0);
+        // vector<mstreal> findBinderResAADist(Frame* frame, int targetResIdx, mstreal pseudocount = 1.0);
 
     protected:
-        vector<mstreal> aaDistFromMobileFrames(set<mobileFrame*> frames, mstreal pseudocount);
+        // vector<mstreal> aaDistFromMobileFrames(set<mobileFrame*> frames, mstreal pseudocount);
 
     private:
         map<int,vector<bool> > occupiedVolMap; // map[resIdx][voxelIdx]

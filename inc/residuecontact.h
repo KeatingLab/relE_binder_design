@@ -3,6 +3,7 @@
 
 #include <set>
 
+#include "mstrotlib.h"
 #include "mstsequence.h"
 #include "msttypes.h"
 
@@ -41,6 +42,56 @@ private:
 
 };
 
+class clashChecker {
+public:
+    clashChecker() {};
+    clashChecker(Structure& S) {setStructure(S);}
+    ~clashChecker() {if (PS != nullptr) delete PS;}
+
+    void setStructure(Structure& S) {
+        atoms = AtomPointerVector(S.getAtoms());
+        PS = new ProximitySearch(atoms,2.0);
+    }
+
+    bool checkForClashesToStructure(vector<Residue*> queryRes) {
+        if (PS == nullptr) MstUtils::error("Must first provide structure to check","clashChecker::checkForClashesToStructure");
+        for (Residue* R : queryRes) {
+            for (Atom* A : R->getAtoms()) {
+                vector<int> nearPoints = PS->getPointsWithin(A->getCoor(),0,vdwCheck.maxSumRadii());
+                for (int i : nearPoints) {
+                    Atom* targetA = atoms[i];
+                    if (vdwCheck.clash(A,targetA)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    bool checkForClashesWithinQueryStructure(vector<Residue*> queryRes) {
+        for (Residue* Ri : queryRes) {
+                for (Residue* Rj : queryRes) {
+                    for (Atom* Ai : Ri->getAtoms()) {
+                        for (Atom* Aj : Rj->getAtoms()) {
+                            if (vdwCheck.clash(*Ai,*Aj) && !ignoreClash(Ri,Rj)) return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+protected:
+    bool ignoreClash(Residue* Ri, Residue* Rj) {
+        if (Ri->getChainID() != Rj->getChainID()) return true;
+        if (abs(Ri->getResidueIndexInChain() - Rj->getResidueIndexInChain()) < 2) return true;
+        return false;
+    }
+
+private:
+    checkVDWRadii vdwCheck;
+    AtomPointerVector atoms;
+    ProximitySearch* PS = nullptr;
+};
+
 class vdwContacts {
     /* A light-weight class that can identify pairs of residues that make VDW interactions (through
     their sidechains or other atoms). This class has two uses: 
@@ -56,7 +107,7 @@ class vdwContacts {
     paired with some kind of potential that more carefully assesses whether the interaction has a favorable enthalpy.
      */
 public:
-    enum vdwContactType {NONE, ALL, SIDECHAIN, SIDECHAIN_BACKBONE, BACKBONE_SIDECHAIN, BACKBONE};
+    enum vdwContactType {NONE, ALL, SIDECHAIN, SIDECHAIN_BACKBONE, BACKBONE_SIDECHAIN, BACKBONE, NOT_BACKBONE};
 
     vdwContacts(vector<Residue*> S_res);
     vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains);
@@ -106,7 +157,14 @@ class potentialContacts {
     public:
         potentialContacts() {};
 
-        potentialContacts(vector<Residue*> _targetResidues, vector<Residue*> _binderResidues) {
+        potentialContacts(vector<Residue*> allResidues, bool _strict = true) : resStrict(_strict) {
+            // For the scenario where we are trying to estimate distributions from looking at protein structures
+            setTargetResidues(allResidues);
+            setBinderResidues(allResidues);
+            singleStructure = true;
+        }
+
+        potentialContacts(vector<Residue*> _targetResidues, vector<Residue*> _binderResidues, bool _strict = true) : resStrict(_strict) {
             setTargetResidues(_targetResidues);
             setBinderResidues(_binderResidues);
         }
@@ -115,14 +173,23 @@ class potentialContacts {
 
         void setTargetResidues(vector<Residue*> _targetResidues);
         void setBinderResidues(vector<Residue*> _binderResidues);
+        void setMaxDistanceToCheck(mstreal CaDist) {distanceToCheck = CaDist;}
+        void setResStrict(bool _strict) {resStrict = _strict;}
+
+        set<Residue*> getContactsWithResidue(Residue* R);
 
         vector<pair<Residue*,Residue*>> getContacts(bool simpleDistanceCheck = false);
+        int getNumContacts() {return contacts.size();}
+        vector<pair<Residue*,Residue*>> getNonDesignableContacts();
+        int getNumNonDesignablePairs() {return nonDesignablePairs.size();}
 
         bool isPotentialSSContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.05);
         bool isPotentialSBContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.05, bool checkReverseDirection = false);
         bool isPotentialBBContact(Residue* Ri, Residue* Rj);
+        bool isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.0025);
+        // bool isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.001);
 
-        /**
+        /**s
          * @brief Constructs a idealized Cb coordinates given the backbone atoms of a residue
          * 
          * @param R A residue with all backbone heavy atoms
@@ -150,6 +217,16 @@ class potentialContacts {
          */
         mstreal getCaCbtoRiCaRjCaAngle(Residue* Ri, Residue* Rj);
 
+        /**
+         * @brief Counts the number of backbone heavy atoms within a cyclinder defined along the line segment between the Ca of both residues.
+         * 
+         * @param Ri 
+         * @param Rj 
+         * @param R the radius of the cyclinder between the residues
+         * @return int 
+         */
+        int bbHeavyAtomsBetweenResidues(Residue* Ri, Residue* Rj, mstreal R = 4.0);
+
     protected:
         bool ignoreContact(Residue* Ri, Residue* Rj);
 
@@ -159,6 +236,7 @@ class potentialContacts {
 
         vector<Residue*> targetResidues;
         vector<Residue*> binderResidues;
+        bool singleStructure = false;
 
         vector<CartesianPoint> targetResCb;
         vector<CartesianPoint> binderResCb;
@@ -172,14 +250,22 @@ class potentialContacts {
         mstreal azimuthalAngle = 87.948;
 
         map<Residue*,res_t> targetResidueAAIdentity;
-        mstreal defaultDistanceToCheck = 15.0;
+        bool resStrict = true;
+        mstreal distanceToCheck = 15.0;
 
         bool loadedPDensity = false;
         map<res_t,twoDimHistogram> sidechainSidechainContactProbabilityDensity;
         map<res_t,twoDimHistogram> sidechainBackboneContactProbabilityDensity;
+        map<res_t,twoDimHistogram> sidechainSidechainDesignabilityProbabilityDensity; 
+        map<res_t,twoDimHistogram> sidechainBackboneDesignabilityProbabilityDensity;
 
-        bool sameChain; // if true, will check whether nearby residues are in the same chain
+        bool sameChain = true; // if true, will check whether nearby residues are in the same chain
         int ignoreDistance = 8; //interacting residues this close in the chain will be ignored
+
+        vector<pair<Residue*,Residue*>> contacts;
+        map<Residue*,set<Residue*>> contactMap;
+
+        vector<pair<Residue*,Residue*>> nonDesignablePairs;
 };
 
 #endif

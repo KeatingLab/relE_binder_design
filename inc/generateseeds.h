@@ -94,7 +94,7 @@ class seedGenerator {
             for (auto frag : allFragmentsData) delete frag.fragment;
         }
         
-        void setBindingSite(mstreal rSASAthresh);
+        void defineBindingSiteAsSurfaceRes(mstreal rSASAthresh = 0.1);
         void setBindingSite(vector<Residue*> bindingSiteRes) {
             bindingSite = bindingSiteRes;
             cout << "Set the binding site to " << bindingSite.size() << " residues" << endl;
@@ -140,8 +140,8 @@ class seedGenerator {
     private:
         const Structure& target;
         string targetName = "";
-        vector<Atom*> targetBackboneAtoms = {};
-        ProximitySearch targetBackbonePS;
+        vector<Atom*> targetBackboneAtoms = {}; // All atoms of core residues and all backbone atoms of surface residues
+        ProximitySearch targetAtomsPS;
         checkVDWRadii checker;
 
         vector<Residue*> bindingSite = {};

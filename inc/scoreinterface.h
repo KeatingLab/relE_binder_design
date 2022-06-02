@@ -99,6 +99,7 @@ struct binderScorerParams {
     mstreal posCut = 0; //angstroms
     mstreal oriCut = 0; //degrees
     bool renormalizeProbabilities = true;
+    bool verbose = false;
 };
 
 class binderScorer {
@@ -110,7 +111,9 @@ class binderScorer {
         ~binderScorer() {
             if (complexMode) delete binder;
             contact_info_out->close();
+            if (binder_info_out != nullptr) delete binder_info_out;
             if (contact_info_out != nullptr) delete contact_info_out;
+            if (clash_info_out != nullptr) delete clash_info_out;
             for (auto const it : frameTables) delete it.second;
         }
 
@@ -118,7 +121,7 @@ class binderScorer {
         void setTargetBindingSiteResidues(vector<Residue*> sel);
         void defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold = 0.05);
 
-        void defineInterfaceByPotentialContacts();
+        int defineInterfaceByPotentialContacts();
         // void manuallySetInterface(vector<pair<Residue*,Residue*>> contacts);
 
         vector<Residue*> getTargetResidues() {return target.getResidues();}
@@ -130,21 +133,27 @@ class binderScorer {
             return mobileFrame->frameRelativeToOther(*refFrame);
         }
 
-        void scoreInterface();
+        mstreal scoreInterface();
 
-        void scoreResiduePair(pair<Residue*,Residue*> resPair);
+        int countDesignableContacts() {return pConts.getNumContacts();}
+        int countNonDesignableContacts() {return pConts.getNumNonDesignablePairs();}
 
+        void writeBinderScoresToFile(bool append = true);
         void writeContactScoresToFile(bool append = true);
         void writeContactPropertyToFile(string dirPath = "");
+        void writeResidueClashesToFile(bool append = true);
+        void writeResiduesClashesToSimpleFile(string dirPath = "");
         void writePSSM(string dirPath = "");
 
     protected:
-
         void prepareVoxelGrids(string frameDBPath);
         void defineInterfaceUsingVDWContacts();
-        void setFrameProbabilityTables();
+        // void setFrameProbabilityTables();
+
+        int residueFrameCounts(pair<Residue*,Residue*> resPair);
 
         mstreal logProb(mstreal numerator, mstreal denominator, mstreal pseudocount = 1.0);
+        mstreal logCounts(int counts, mstreal pseudocount = 1.0) {return -log(counts+pseudocount);}
 
         vector<mstreal> getAADistAtPos(Residue* binderRes);
 
@@ -162,28 +171,37 @@ class binderScorer {
         Structure targetBackbone;
         augmentedStructure* binder = nullptr;
         set<string> aaTypes;
+        bool verbose = false;
 
         vector<Chain*> binderChains;
         vector<Chain*> proteinChains;
 
         potentialContacts pConts;
         vector<pair<Residue*,Residue*>> interfaceResidues; // target, binder residue
-        set<Residue*> targetResidues; //a subset of residues in the target at the binding site
+        vector<pair<Residue*,Residue*>> nonDesignableInterfaceResidues; // target, binder
+        set<Residue*> targetResidues; //subset of residues in the target found in the binding site
 
-        mstreal posCut = 0.25; //angstroms
-        mstreal oriCut = 15.0; //degrees
+        mstreal nonDesignableContactPenalty = 10.0;
+        mstreal designabilityScore = 0.0;
+        int numNonDesignable = 0;
 
-        bool renormalizeProbabilities = true;
-        map<res_t,frameProbability*> frameTables;
+        mstreal posCut = 1.0; //angstroms
+        mstreal oriCut = 10.0; //degrees
 
+        // bool renormalizeProbabilities = true;
+        map<res_t,frameTable*> frameTables;
 
         MstTimer timer;
 
-        vector<mstreal> probabilities;
-        vector<pair<int,int>> countAndNorm;
+        // vector<mstreal> probabilities;
+        // vector<pair<int,int>> countAndNorm;
+        vector<int> interfaceCounts;
+        vector<mstreal> interfaceScores;
         vector<mstreal> searchTimes;
 
+        fstream* binder_info_out = nullptr;
         fstream* contact_info_out = nullptr;
+        fstream* clash_info_out = nullptr;
         // fstream* match_info_out = nullptr;
 
         bool complexMode = false; //indicates that we're scoring a real complex

@@ -32,11 +32,12 @@ class proteinFrameDB {
         void readDBFile(string dbPath);
         void writeDBFile(string dbPath);
 
-        const set<int>& getContacts(int target_i, int res_i);
+        const set<int>& getContacts(int target_i, int res_i, bool BBint = false);
 
-        void setVDWContacts(int target_i, const map<int, set<int>> &_vdwContacts)
+        void setVDWContacts(int target_i, const map<int, set<int>> &_vdwContacts, bool BBint = false)
         {
-            vdwContacts.insert(pair<int,map<int, set<int> > >(target_i,_vdwContacts));
+            if (BBint) vdwContactsBB.insert(pair<int,map<int, set<int> > >(target_i,_vdwContacts));
+            else vdwContacts.insert(pair<int,map<int, set<int> > >(target_i,_vdwContacts));
         }
 
     protected:
@@ -46,7 +47,10 @@ class proteinFrameDB {
         int version = 1;
         vector<augmentedStructure *> targets;
 
-        map<int, map<int, set<int>>> vdwContacts;
+        map<int, map<int, set<int>>> vdwContacts; // All contact types, except backbone
+        map<int, map<int, set<int>>> vdwContactsBB;
+
+
 
 
 };

@@ -25,6 +25,9 @@ bool SeqToolsExtension::initConstants() {
     //// similar
     equivalentAA["MSE"] = "MET";
     equivalentAA["SEC"] = "CYS";
+    equivalentAA["TYS"] = "TYR";
+    equivalentAA["PTR"] = "TYR";
+
     return true;
 }
 
@@ -100,12 +103,14 @@ void twoDimHistogram::setCounts(vector<vector<int>> _counts) {
 }
 
 int twoDimHistogram::getCounts(mstreal val1, mstreal val2) {
+    if (counts.empty()) MstUtils::error("Counts not set!","twoDimHistogram::getCounts");
     int idx1, idx2;
     getIdx(val1,val2,idx1,idx2);
     return counts[idx1][idx2];
 }
 
 mstreal twoDimHistogram::getDensity(mstreal val1, mstreal val2) {
+    if (counts.empty()) MstUtils::error("Counts not set!","twoDimHistogram::getCounts");
     int idx1, idx2;
     getIdx(val1,val2,idx1,idx2);
     return mstreal(counts[idx1][idx2]) / mstreal(normalizingConstant) / (dim1BinSize*dim2BinSize);

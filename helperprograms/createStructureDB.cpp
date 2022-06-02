@@ -82,7 +82,8 @@ int main(int argc, char *argv[])
                 const augmentedStructure& P = frameDB.getTarget(ti);
                 vdwContacts vdwC(P.getResidues());
                 bool verbose = true;
-                frameDB.setVDWContacts(ti,vdwC.getAllInteractingRes(vdwContacts::vdwContactType::ALL, verbose));
+                frameDB.setVDWContacts(ti,vdwC.getAllInteractingRes(vdwContacts::vdwContactType::BACKBONE, verbose),true);
+                frameDB.setVDWContacts(ti,vdwC.getAllInteractingRes(vdwContacts::vdwContactType::NOT_BACKBONE, verbose),false);
             }
         }
         frameDB.writeDBFile(op.getString("o")+".db");
@@ -136,9 +137,8 @@ int main(int argc, char *argv[])
             outf << "#SBATCH -t 0-" << hrs << ":00:00\n";
             outf << op.getExecName() << " --pL " << listFile << " --o " << dbFile;
             // keep all other options from the call to self
-            for (int j = 0; j < allOpts.size(); j++)
-            {
-                if ((allOpts[j].compare("batch") == 0) || (allOpts[j].compare("pL") == 0) || (allOpts[j].compare("o") == 0))
+            for (int j = 0; j < allOpts.size(); j++) {
+                if ((allOpts[j].compare("batch") == 0) || (allOpts[j].compare("pL") == 0) || (allOpts[j].compare("o") == 0) || (allOpts[j].compare("p") == 0))
                     continue;
                 outf << " --" << allOpts[j] << " " << op.getString(allOpts[j]);
             }
@@ -152,6 +152,14 @@ int main(int argc, char *argv[])
         dblf.close();
         fstream fin;
         MstUtils::openFile(fin, "fin." + MstSys::pathBase(op.getString("o")) + ".sh", ios::out);
+        string partition_name = op.getString("p", "defq");
+        fin << "#!/bin/bash\n";
+        fin << "#SBATCH -J fasstDB.%A\n"
+                << "#SBATCH -o fasstDB.%A.log\n";
+        fin << "#SBATCH -p " << partition_name << "\n"
+                << "#SBATCH -n 1\n"
+                << "#SBATCH --mem=2G\n";
+        fin << "#SBATCH -t 0-3:00:00\n";
         fin << op.getExecName() << " --dL " << dbListFile << " --o " << op.getString("o");
         fin << endl;
         fin << "if [ $? -eq 0 ]; then # only clean up if database creation was successful" << endl;

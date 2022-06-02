@@ -25,6 +25,7 @@ int main(int argc, char *argv[]) {
     op.addOption("distanceCutoff","The distance cutoff that is applied when determining whether a putative match has the proper position (default = 0.5 Å)",false);
     op.addOption("orientationCutoff","The orientation cutoff that is applied when determining whether a putative match has the proper orientation (default = 15°)",false);
     op.addOption("dontRenormalizeProbability","By default, potential residue interactions that would clash with atoms of the target backbone are omitted and the conditional probability the interaction is renormalized. If this is provided, will not do this",false);
+    op.addOption("verbose","");
     op.setOptions(argc,argv);
 
     if (op.isGiven("complexPDB")) {
@@ -49,6 +50,7 @@ int main(int argc, char *argv[]) {
     mstreal posCut = op.getReal("distanceCutoff",0.5);
     mstreal oriCut = op.getReal("orientationCutoff",15.0);
     bool renormalizeProbabilities = !op.isGiven("dontRenormalizeProbability");
+    bool verbose = op.isGiven("verbose");
 
     binderScorer* scorer = nullptr;
 
@@ -58,6 +60,7 @@ int main(int argc, char *argv[]) {
     params.posCut = posCut;
     params.oriCut = oriCut;
     params.renormalizeProbabilities = renormalizeProbabilities;
+    params.verbose = verbose;
 
     if (complexPDB != "") {
         augmentedStructure complex(complexPDB);
@@ -67,26 +70,33 @@ int main(int argc, char *argv[]) {
             scorer->defineTargetBindingSiteResiduesByrSASA();
             scorer->defineInterfaceByPotentialContacts();
         }
-        scorer->scoreInterface();
+        mstreal score = scorer->scoreInterface();
+        cout << "Interface score: " << score << endl;
+        cout << "Non-designable contacts: " << scorer->countNonDesignableContacts() << endl;
 
         // write the score counts out to a file
         scorer->writeContactScoresToFile();
+        scorer->writeResidueClashesToFile();
+        scorer->writeBinderScoresToFile();
 
         scorer->writeContactPropertyToFile();
+        scorer->writeResiduesClashesToSimpleFile();
         scorer->writePSSM();
 
     } else {
         // score target with multiple designed binders mode
-        augmentedStructure target(targetPDB);
+        Structure targetS(targetPDB,"SKIPHETERO|ALLOW ILE CD1");
 
         if (binderChainIDsString != "") {
             vector<string> binderChainIDs = MstUtils::split(binderChainIDsString,"_");
             for (string chainID : binderChainIDs) {
-                Chain* C = target.getChainByID(chainID);
+                Chain* C = targetS.getChainByID(chainID);
                 if (C == NULL) MstUtils::error("Chain not found in structure: "+MstUtils::toString(chainID),"binderScorer::main()");
+                targetS.deleteChain(C);
             }
             cout << "Deleted " << binderChainIDs.size() << " binder chains from the structure" << endl;
         }
+        augmentedStructure target(targetS);
         scorer = new binderScorer(params,target);
 
         // define the target binding site residues using relSASA
@@ -107,6 +117,9 @@ int main(int argc, char *argv[]) {
 
                 // write the score counts out to a file
                 scorer->writeContactScoresToFile();
+                scorer->writeResidueClashesToFile();
+                scorer->writeBinderScoresToFile();
+                scorer->writeContactPropertyToFile("");
                 count++;
             }
         } else {
@@ -135,6 +148,8 @@ int main(int argc, char *argv[]) {
 
                     // write the score counts out to a file
                     scorer->writeContactScoresToFile();
+                    scorer->writeResidueClashesToFile();
+                    scorer->writeBinderScoresToFile();
 
                     // write out more detailed info to individual files
                     scorer->writeContactPropertyToFile(contactFilePrefix);
@@ -157,6 +172,8 @@ int main(int argc, char *argv[]) {
 
                     // write the score counts out to a file
                     scorer->writeContactScoresToFile();
+                    scorer->writeResidueClashesToFile();
+                    scorer->writeBinderScoresToFile();
 
                     delete seed;
                     count++;

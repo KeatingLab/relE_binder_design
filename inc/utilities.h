@@ -4,6 +4,44 @@
 #include "mstrotlib.h"
 #include "mstsequence.h"
 
+class fisherYatesShuffle {
+    // https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+    // Durstenfield's modern version for sampling without replacement in linear time
+    public:
+        /**
+         * @brief Sample values in the range [minValue,maxValue]
+         * 
+         * @param minValue 
+         * @param maxValue 
+         */
+        fisherYatesShuffle(int minValue, int maxValue) {
+            values = vector<int>(maxValue-minValue+1);
+            iota(values.begin(),values.end(),minValue);
+            numRemainingToBeSampled = maxValue-minValue+1;
+        }
+        fisherYatesShuffle() {}
+
+        int numRemaining() {return numRemainingToBeSampled;}
+
+        int sample() {
+            if (values.empty()) MstUtils::error("No values to sample from","fisherYatesShuffle::sample");
+            // select random position in vector and get value
+            int i = MstUtils::randInt(numRemainingToBeSampled);
+            int val = values[i];
+
+            // swap in whatever value is at the end of the vector
+            values[i] = values[numRemainingToBeSampled-1];
+
+            // decrease the range of the vector from which values can be sampled
+            numRemainingToBeSampled--;
+            return val;
+        }
+
+    private:
+        vector<int> values;
+        int numRemainingToBeSampled;
+};
+
 class SeqToolsExtension {
     public:
         static bool initConstants();
@@ -23,6 +61,14 @@ class SeqToolsExtension {
 
 class MiscTools {
     public:
+        static vector<Atom*> getBackboneAtoms(Structure& S) {
+            vector<Chain*> Cvec;
+            for (int i = 0; i < S.chainSize(); i++) {
+                Cvec.push_back(&S.getChain(i));
+            }
+            return getBackboneAtoms(Cvec);
+        }
+
         static vector<Atom*> getBackboneAtoms(vector<Chain*> Cvec) {
             vector<Atom*> allBackboneAtoms;
             for (Chain* C : Cvec) {
@@ -35,6 +81,16 @@ class MiscTools {
         static vector<Atom*> getBackboneAtoms(Chain* C) {
             vector<Atom*> allBackboneAtoms;
             for (Residue* R : C->getResidues()) {
+                if (!RotamerLibrary::hasFullBackbone(R)) MstUtils::error("All residues in chain must have full backbones","MiscTools::getBackboneAtoms");
+                vector<Atom*> backboneAtoms = RotamerLibrary::getBackbone(R);
+                allBackboneAtoms.insert(allBackboneAtoms.end(),backboneAtoms.begin(),backboneAtoms.end());
+            }
+            return allBackboneAtoms;
+        }
+
+        static vector<Atom*> getBackboneAtoms(vector<Residue*> residues) {
+            vector<Atom*> allBackboneAtoms;
+            for (Residue* R : residues) {
                 if (!RotamerLibrary::hasFullBackbone(R)) MstUtils::error("All residues in chain must have full backbones","MiscTools::getBackboneAtoms");
                 vector<Atom*> backboneAtoms = RotamerLibrary::getBackbone(R);
                 allBackboneAtoms.insert(allBackboneAtoms.end(),backboneAtoms.begin(),backboneAtoms.end());
@@ -78,6 +134,10 @@ class twoDimHistogram {
 
         int getCounts(mstreal val1, mstreal val2);
         mstreal getDensity(mstreal val1, mstreal val2);
+        mstreal getdim1Min() {return dim1Min;}
+        mstreal getdim1Max() {return dim1Max;}
+        mstreal getdim2Min() {return dim2Min;}
+        mstreal getdim2Max() {return dim2Max;}
 
         void reportHistogram();
 
@@ -93,6 +153,34 @@ class twoDimHistogram {
         mstreal dim2BinSize;
         vector<vector<int>> counts;
         int normalizingConstant;
+};
+
+class lineSDF {
+    // Derivation from an Inigo Quilez video https://youtu.be/PMltMdi1Wzg
+    public:
+        lineSDF(CartesianPoint _A, CartesianPoint _B, bool _roundedEdges = false) : A(_A), B(_B), roundedEdges(_roundedEdges) {;}
+
+        mstreal distance(CartesianPoint P) {
+            mstreal h = normalizedDistanceAlongLine(P);
+            if (roundedEdges) {
+                return (P - A - (B-A)*min(1.0,max(0.0,h))).norm();
+            } else {
+                if (h > 1.0) return std::numeric_limits<double>::max();
+                if (h < 0.0) return std::numeric_limits<double>::max();
+                return (P - A - (B-A)*h).norm();
+            }
+        }
+
+    protected:
+        mstreal normalizedDistanceAlongLine(CartesianPoint P) {
+            mstreal normOfAtoB = (B-A).norm();
+            return (P - A).dot(B-A)/(normOfAtoB*normOfAtoB);
+        }
+
+    private:
+        CartesianPoint A;
+        CartesianPoint B;
+        bool roundedEdges = false; // If true, then report distance of points that are closer to the endpoints
 };
 
 #endif

@@ -36,7 +36,7 @@ class augmentedStructure : public Structure {
     public:
         augmentedStructure() : Structure() {}
 
-        augmentedStructure(string structure_path, bool verbose = false) : Structure(structure_path,"SKIPHETERO") {
+        augmentedStructure(string structure_path, bool verbose = false) : Structure(structure_path,"SKIPHETERO|ALLOW ILE CD1") {
             prepareStructure(verbose);
         }
 

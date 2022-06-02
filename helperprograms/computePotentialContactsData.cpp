@@ -7,11 +7,13 @@
 
 int main(int argc, char *argv[]) {
     MstOptions op;
-    op.setTitle("Writes contact data from structures. Finds all potential contacts within certain distance and reports their cosine angle and whether they are real contacts");
+    op.setTitle("Writes contact data from structures. Finds all residues within certain distance and reports their cosine angle and whether they are real contacts");
     op.addOption("pdbList", "List of PDB structures",true);
-    op.addOption("omitNonContacting", "If provided, will report real VDW contacts (so all potential contacts with no VDW contact will be omitted)");
+    op.addOption("maxCaDist","The maximum Ca distance at which to consider neighboring residues (default 15.0 Å)");
+    op.addOption("omitNonContacting", "If provided, will only report real VDW contacts (so all potential contacts with no VDW contact will be omitted)");
     op.setOptions(argc,argv);
 
+    mstreal maxCaDist = op.getReal("maxCaDist",15.0);
     bool omitNonContact = op.isGiven("omitNonContacting");
     string pdbListPath = op.getString("pdbList");
     vector<string> pdbList = MstUtils::fileToArray(pdbListPath);
@@ -20,7 +22,7 @@ int main(int argc, char *argv[]) {
     string fileName = MstSys::splitPath(pdbListPath,1) + ".csv";
     MstUtils::openFile(out,fileName,fstream::out);
 
-    out << "structure,resIchainID,resInum,resIname,resJchainID,resJnum,resJname,CaDistance,normalizedCbdistance,RiCbOrientation,RjCbOrientation,vdwContactSS,vdwContactSB,vdwContactBS,vdwContactBB" << endl;
+    out << "structure,resIchainID,resInum,resIname,resJchainID,resJnum,resJname,CaDistance,normalizedCbdistance,RiCbOrientation,RjCbOrientation,numBBHeavyAtomsBetweenResidues,vdwContactSS,vdwContactSB,vdwContactBS,vdwContactBB" << endl;
 
     for (string pdbPath : pdbList) {
         Structure S(pdbPath);
@@ -30,7 +32,7 @@ int main(int argc, char *argv[]) {
         vector<Residue*> validRes;
         for (Residue* R : S.getResidues()) {
             if (!RotamerLibrary::hasFullBackbone(R)) {
-                cout << "Skipping residue: " << R->getChainID() << R->getNum() << " in structure " << R->getParent()->getStructure()->getName() << endl;
+                cout << "Skipping residue: " << R->getChainID() << R->getNum() << " in structure " << R->getParent()->getStructure()->getName() << " due to incomplete backbone" << endl;
                 continue;
             }
             validRes.push_back(R);
@@ -43,7 +45,8 @@ int main(int argc, char *argv[]) {
         map<int,set<int>> vdwBBConts = vdwC.getAllInteractingRes(vdwContacts::vdwContactType::BACKBONE);
         cout << "Found " << vdwSSConts.size() + vdwSBConts.size() + vdwBSConts.size() + vdwBBConts.size() << " vdw contacts" << endl;
 
-        potentialContacts pC(validRes,validRes);
+        potentialContacts pC(validRes,false);
+        pC.setMaxDistanceToCheck(maxCaDist);
         vector<pair<Residue*,Residue*>> pContacts = pC.getContacts(true);
         cout << "Found " << pContacts.size() << " distance based contacts" << endl;
 
@@ -75,10 +78,12 @@ int main(int argc, char *argv[]) {
             mstreal normCbDistance = pC.getNormalizedCbDistance(targetRes,binderRes);
             mstreal RiCbOrientation = pC.getCaCbtoRiCaRjCaAngle(targetRes,binderRes);
             mstreal RjCbOrientation = pC.getCaCbtoRiCaRjCaAngle(binderRes,targetRes);
+            int numBBHeavyAtomsBetweenResidues = pC.bbHeavyAtomsBetweenResidues(targetRes,binderRes);
 
             out << S.getName() << "," << targetRes->getChainID() << "," << targetRes->getNum() << "," << targetRes->getName() << ",";
             out << binderRes->getChainID() << "," << binderRes->getNum() << "," << binderRes->getName() << ",";
             out << CaDistance << "," << normCbDistance << "," << RiCbOrientation << "," << RjCbOrientation << ",";
+            out << numBBHeavyAtomsBetweenResidues << ",";
             out << isvdwSSCont << "," << isvdwSBCont << "," << isvdwBSCont << "," << isvdwBBCont << endl;
         }
     }

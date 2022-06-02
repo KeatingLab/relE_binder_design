@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
     // Keep track of contacts with a few different files
     fstream out;
     MstUtils::openFile(out,"allPotentialContacts.csv",fstream::out);
-    out << "resIchainID,resInum,resIname,resJchainID,resJnum,resJname,CaDistance,normalizedCbdistance,RiCbOrientation,RjCbOrientation,potentialContactSS,potentialContactSB,potentialContactBS,potentialContactBB" << endl;
+    out << "resIchainID,resInum,resIname,resJchainID,resJnum,resJname,CaDistance,normalizedCbdistance,RiCbOrientation,RjCbOrientation,numBBHeavyAtomsBetweenResidues,potentialContactSS,potentialContactSB,potentialContactBS,potentialContactBB" << endl;
 
     fstream ss_out;
     MstUtils::openFile(ss_out,"potentialContactsSS.tsv",fstream::out);
@@ -64,12 +64,14 @@ int main(int argc, char *argv[]) {
     MstUtils::openFile(bb_out,"potentialContactsBB.tsv",fstream::out);
 
     int nSS = 0, nSB = 0, nBS = 0, nBB = 0, nTotal = 0;
+    cout << targetResidues.size() << " target residues and " << binderResidues.size() << " binder residues" << endl;
     for (Residue* targetR : targetResidues) {
         for (Residue* binderR : binderResidues) {
             mstreal CaDistance = pConts.getCaDistance(targetR,binderR);
             mstreal getNormalizedCbDistance = pConts.getNormalizedCbDistance(targetR,binderR);
             mstreal RiCbOrientation = pConts.getCaCbtoRiCaRjCaAngle(targetR,binderR);
             mstreal RjCbOrientation = pConts.getCaCbtoRiCaRjCaAngle(binderR,targetR);
+            int numBBHeavyAtomsBetweenResidues = pConts.bbHeavyAtomsBetweenResidues(targetR,binderR);
 
             bool SS = pConts.isPotentialSSContact(targetR,binderR);
             bool SB = pConts.isPotentialSBContact(targetR,binderR);
@@ -79,6 +81,7 @@ int main(int argc, char *argv[]) {
             out << targetR->getChainID() << "," << targetR->getNum() << "," << targetR->getName() << ",";
             out << binderR->getChainID() << "," << binderR->getNum() << "," << binderR->getName() << ",";
             out << CaDistance << "," << getNormalizedCbDistance << "," << RiCbOrientation << "," << RjCbOrientation << ",";
+            out << numBBHeavyAtomsBetweenResidues << ",";
             out << SS << "," << SB << "," << BS << "," << BB << endl;
 
             if (SS) {
