@@ -164,6 +164,11 @@ vector<Structure*> segmentGraph::getCtermNeighbors(string nodeName) {
     return revAdjacencies[name2Structure.at(nodeName)];
 }
 
+Structure* segmentGraph::getNodeByName(string nodeName) {
+    if (!isStructureInGraph(nodeName)) MstUtils::error("Node not found in graph","segmentGraph::getCtermNeighbors");
+    return name2Structure[nodeName];
+}
+
 int segmentGraph::getNodeDesignability(string nodeName) {
     if (!isStructureInGraph(nodeName)) MstUtils::error("Node not found in graph","segmentGraph::getCtermNeighbors");
     if (name2designability.count(nodeName) == 0) MstUtils::error("Node with name: "+MstUtils::toString(nodeName)+" does not have designability info","segmentGraph::getNodeDesignability");
@@ -346,3 +351,33 @@ mstreal sampleSegmentOverlaps::calculateLeastRMSD(Structure* query, Structure* c
     if (transform) calc.applyLastTransformation(candidateBBAtom);
     return RMSD;
 }
+
+/* --- --- --- --- --- sampleSegmentOverlaps --- --- --- --- --- */
+
+mstreal searchSegments::findLowestRMSDSegment(Structure* query) {
+    Structure queryBBAtoms(MiscTools::getBackboneAtoms(*query));
+    if (queryBBAtoms.residueSize() != graph.getSegmentLength()) MstUtils::error("Query does not have the same number of residues as segments in the graph","searchSegments::findLowestRMSDSegment");
+
+    vector<Structure*> segments = graph.getAllNodes();
+    mstreal minRMSD = 100.0;
+    for (Structure* segment : segments) {
+        mstreal newRMSD = calc.bestRMSD(queryBBAtoms.getAtoms(),segment->getAtoms());
+        if (newRMSD <= minRMSD) {
+            minRMSD = newRMSD;
+            matchingSegmentName = segment->getName();
+            RMSDToMatch = minRMSD;
+        }
+    }
+    return RMSDToMatch;
+}
+
+Structure searchSegments::getClosestMatch() {
+    if (matchingSegmentName == "") MstUtils::error("Must find a matching segment first","searchSegments::getClosestMatch");
+    return *graph.getNodeByName(matchingSegmentName);
+}
+int searchSegments::getNumMatchesInDB() {
+    if (matchingSegmentName == "") MstUtils::error("Must find a matching segment first","searchSegments::getNumMatchesInDB");
+    return graph.getNodeDesignability(matchingSegmentName);
+}
+
+

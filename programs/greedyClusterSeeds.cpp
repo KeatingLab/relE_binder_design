@@ -16,12 +16,14 @@ int main(int argc, char *argv[])
     op.addOption("seedList","Path to a file where each line is the name of a seed in the binary file. If provided, will only cluster these seeds");
     op.addOption("clusterRMSDCutoff","The RMSD cutoff (Å) that is used to define greedy clusters (default:  0.5)");
     op.addOption("seedLength","The number of residues in each seed (default 5)");
+    op.addOption("coverage","Greedy clustering will continue until this fraction of seeds are covered. The remaining seeds will be placed in their own clusters (default 0.5)");
     op.setOptions(argc,argv);
 
     string binderBinPath = op.getString("binderBin");
     string seedListPath = op.getString("seedList","");
     mstreal clusterRMSDCutoff = op.getReal("clusterRMSDCutoff",0.5);
     int seedLength = op.getInt("seedLength",5);
+    mstreal coverage = op.getReal("coverage",0.5);
 
     set<string> selectedSeeds;
     if (seedListPath != "") {
@@ -57,7 +59,6 @@ int main(int argc, char *argv[])
     cout << "Extracted " << seeds.size() << " seeds total from the file" << endl;
 
     int Nmax = 1000;
-    mstreal coverage = 0.5;
     Clusterer Cl;
     Cl.optimizeAlignments(false);
     cout << "Greedily clustering the segments at an RMSD cutoff of " << clusterRMSDCutoff << endl;

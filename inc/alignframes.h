@@ -49,10 +49,6 @@ class proteinFrameDB {
 
         map<int, map<int, set<int>>> vdwContacts; // All contact types, except backbone
         map<int, map<int, set<int>>> vdwContactsBB;
-
-
-
-
 };
 
 class mobileFrame : public residueFrame

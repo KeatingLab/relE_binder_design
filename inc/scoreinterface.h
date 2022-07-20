@@ -5,6 +5,7 @@
 #include "msttypes.h"
 
 #include "alignframes.h"
+#include "fragmentdb.h"
 #include "hashframes.h"
 #include "residueframe.h"
 #include "utilities.h"
@@ -118,6 +119,7 @@ class binderScorer {
         }
 
         void setBinder(augmentedStructure* _binder);
+        augmentedStructure* getBinder() {return binder;}
         void setTargetBindingSiteResidues(vector<Residue*> sel);
         void defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold = 0.05);
 
@@ -205,6 +207,23 @@ class binderScorer {
         // fstream* match_info_out = nullptr;
 
         bool complexMode = false; //indicates that we're scoring a real complex
+};
+
+class binderBackboneScorer {
+    public:
+        binderBackboneScorer(string segmentGraphPath, string _name) : segmentSearcher(segmentGraphPath), name(_name) {;}
+        ~binderBackboneScorer() {if (info_out.is_open()) info_out.close();}
+
+        mstreal scoreBackbone(Structure* S);
+
+    protected:
+        void openFile();
+
+    private:
+        searchSegments segmentSearcher;
+
+        string name;
+        fstream info_out;
 };
 
 #endif

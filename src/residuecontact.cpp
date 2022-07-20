@@ -469,15 +469,16 @@ bool checkVDWRadii::initConstants() {
 
 /* --- --- --- --- --- vdwContacts --- --- --- --- --- */
 
-vdwContacts::vdwContacts(vector<Residue*> S_res) {
+vdwContacts::vdwContacts(vector<Residue*> S_res, mstreal lower, mstreal upper) {
     // By default set all residues to be checked
     setResidues(S_res,S_res);
     // Add each residue in the structure to the proximity search
     preparePS(S_res);
+    setVDWBounds(lower,upper);
     findAllContacts();
 }
 
-vdwContacts::vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains) {
+vdwContacts::vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains, mstreal lower, mstreal upper) {
     vector<Residue*> resIVec, resJVec;
     for (Chain* C : resIChains) {
         vector<Residue*> cRes = C->getResidues();
@@ -491,15 +492,73 @@ vdwContacts::vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains) {
     if (!checkForOverlap.empty()) MstUtils::error("When providing two sets of residues, both sets must not have overlapping members","vdwContacts::vdwContacts");
     setResidues(resIVec,resJVec);
     preparePS();
+    setVDWBounds(lower,upper);
     findAllContacts();
 }
 
-vdwContacts::vdwContacts(vector<Residue*> resIVec, vector<Residue*> resJVec) {
+vdwContacts::vdwContacts(vector<Residue*> resIVec, vector<Residue*> resJVec, mstreal lower, mstreal upper) {
     vector<Residue*> checkForOverlap = MstUtils::setintersect(resIVec,resJVec);
     if (!checkForOverlap.empty()) MstUtils::error("When providing two sets of residues, both sets must not have overlapping members","vdwContacts::vdwContacts");
     setResidues(resIVec,resJVec);
     preparePS();
+    setVDWBounds(lower,upper);
     findAllContacts();
+}
+
+set<Residue*> vdwContacts::getInteractingRes(Residue* Ri, vdwContactType contType) {
+    if (contType == NONE) MstUtils::error("Cannot retrieve contacts of type 'NONE'","vdwContacts::getInteractingRes");
+    if (contType == ALL) {
+        return allInteracting[Ri];
+    } else if (contType == SIDECHAIN) {
+        return sidechainInteracting[Ri];
+    } else if (contType == SIDECHAIN_BACKBONE) {
+        return sidechainBackboneInteracting[Ri];
+    } else if (contType == BACKBONE_SIDECHAIN) {
+        return backboneSidechainInteracting[Ri];
+    } else if (contType == BACKBONE) {
+        return backboneInteracting[Ri];
+    } else if (contType == NOT_BACKBONE) {
+        set<Residue*> result;
+        result.insert(sidechainInteracting[Ri].begin(),sidechainInteracting[Ri].end());
+        result.insert(sidechainBackboneInteracting[Ri].begin(),sidechainBackboneInteracting[Ri].end());
+        result.insert(backboneSidechainInteracting[Ri].begin(),backboneSidechainInteracting[Ri].end());
+        return result;
+    } else {
+        MstUtils::error("contType not recognized","vdwContacts::getInteractingRes");
+    }
+    return set<Residue*>(); //will never reach this
+}
+
+vector<pair<Residue*,Residue*>> vdwContacts::getInteractingResPairs(vdwContactType contType) {
+    vector<pair<Residue*,Residue*>> result;
+    int numContacts = 0;
+    for (Residue* Ri : resISet) {
+        set<Residue*> interactingRes;
+        for (Residue* Rj : getInteractingRes(Ri, contType)) {
+            interactingRes.insert(Rj);
+            numContacts++;
+        }
+        for (Residue* Rj : interactingRes) {
+            result.emplace_back(pair<Residue*,Residue*>(Ri,Rj));
+        }
+    }
+    // if (verbose) cout << "In total, selected residues have " << numContacts << " VDW contacts" << endl;
+    return result;
+}
+
+map<int,set<int> > vdwContacts::getAllInteractingRes(vdwContactType contType, bool verbose) {
+    map<int,set<int> > allInteractingData;
+    int numContacts = 0;
+    for (Residue* Ri : resISet) {
+        set<int> interactingResIdx;
+        for (Residue* Rj : getInteractingRes(Ri, contType)) {
+            interactingResIdx.insert(Rj->getResidueIndex());
+            numContacts++;
+        }
+        allInteractingData[Ri->getResidueIndex()] = interactingResIdx;
+    }
+    if (verbose) cout << "In total, structure has " << numContacts << " VDW contacts" << endl;
+    return allInteractingData;
 }
 
 void vdwContacts::setResidues(vector<Residue*> resIVec, vector<Residue*> resJVec) {
@@ -564,60 +623,13 @@ void vdwContacts::findAllContacts() {
     }
 }
 
-set<Residue*> vdwContacts::getInteractingRes(Residue* Ri, vdwContactType contType) {
-    if (contType == NONE) MstUtils::error("Cannot retrieve contacts of type 'NONE'","vdwContacts::getInteractingRes");
-    if (contType == ALL) {
-        return allInteracting[Ri];
-    } else if (contType == SIDECHAIN) {
-        return sidechainInteracting[Ri];
-    } else if (contType == SIDECHAIN_BACKBONE) {
-        return sidechainBackboneInteracting[Ri];
-    } else if (contType == BACKBONE_SIDECHAIN) {
-        return backboneSidechainInteracting[Ri];
-    } else if (contType == BACKBONE) {
-        return backboneInteracting[Ri];
-    } else if (contType == NOT_BACKBONE) {
-        set<Residue*> result;
-        result.insert(sidechainInteracting[Ri].begin(),sidechainInteracting[Ri].end());
-        result.insert(sidechainBackboneInteracting[Ri].begin(),sidechainBackboneInteracting[Ri].end());
-        result.insert(backboneSidechainInteracting[Ri].begin(),backboneSidechainInteracting[Ri].end());
-        return result;
-    } else {
-        MstUtils::error("contType not recognized","vdwContacts::getInteractingRes");
+void vdwContacts::setVDWBounds(mstreal lower, mstreal upper) {
+    if (lower != -1.0) {
+        lowerBound = lower;
+    } if (upper != -1.0) {
+        upperBound = upper;
     }
-    return set<Residue*>(); //will never reach this
-}
-
-vector<pair<Residue*,Residue*>> vdwContacts::getInteractingResPairs(vdwContactType contType) {
-    vector<pair<Residue*,Residue*>> result;
-    int numContacts = 0;
-    for (Residue* Ri : resISet) {
-        set<Residue*> interactingRes;
-        for (Residue* Rj : getInteractingRes(Ri, contType)) {
-            interactingRes.insert(Rj);
-            numContacts++;
-        }
-        for (Residue* Rj : interactingRes) {
-            result.emplace_back(pair<Residue*,Residue*>(Ri,Rj));
-        }
-    }
-    // if (verbose) cout << "In total, selected residues have " << numContacts << " VDW contacts" << endl;
-    return result;
-}
-
-map<int,set<int> > vdwContacts::getAllInteractingRes(vdwContactType contType, bool verbose) {
-    map<int,set<int> > allInteractingData;
-    int numContacts = 0;
-    for (Residue* Ri : resISet) {
-        set<int> interactingResIdx;
-        for (Residue* Rj : getInteractingRes(Ri, contType)) {
-            interactingResIdx.insert(Rj->getResidueIndex());
-            numContacts++;
-        }
-        allInteractingData[Ri->getResidueIndex()] = interactingResIdx;
-    }
-    if (verbose) cout << "In total, structure has " << numContacts << " VDW contacts" << endl;
-    return allInteractingData;
+    cout << "Set vdW bounds to: " << lowerBound << " and " << upperBound << endl;
 }
 
 bool vdwContacts::isValid(Residue* Ri, Residue* Rj) {
@@ -658,6 +670,7 @@ vdwContacts::vdwContactType vdwContacts::classifyContact(Atom* Ai, Atom* Aj) {
 /* --- --- --- --- --- potentialContacts --- --- --- --- --- */
 
 void potentialContacts::setTargetResidues(vector<Residue*> _targetResidues) {
+    for (Residue* R: _targetResidues) if (!R) MstUtils::error("Provided residue pointer is null","potentialContacts::setTargetResidues");
     targetResidues = _targetResidues;
     targetCA.clear();
     for (Residue* R : targetResidues) {
@@ -676,6 +689,7 @@ void potentialContacts::setTargetResidues(vector<Residue*> _targetResidues) {
 }
 
 void potentialContacts::setBinderResidues(vector<Residue*> _binderResidues) {
+    for (Residue* R: _binderResidues) if (!R) MstUtils::error("Provided residue pointer is null","potentialContacts::setBinderResidues");
     binderResidues = _binderResidues;
     binderCA.clear();
     for (Residue* R : binderResidues) binderCA.push_back(R->findAtom("CA",true));

@@ -109,9 +109,9 @@ class vdwContacts {
 public:
     enum vdwContactType {NONE, ALL, SIDECHAIN, SIDECHAIN_BACKBONE, BACKBONE_SIDECHAIN, BACKBONE, NOT_BACKBONE};
 
-    vdwContacts(vector<Residue*> S_res);
-    vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains);
-    vdwContacts(vector<Residue*> resIVec, vector<Residue*> resJVec);
+    vdwContacts(vector<Residue*> S_res, mstreal lower = -1.0, mstreal upper = -1.0);
+    vdwContacts(vector<Chain*> resIChains, vector<Chain*> resJChains, mstreal lower = -1.0, mstreal upper = -1.0);
+    vdwContacts(vector<Residue*> resIVec, vector<Residue*> resJVec, mstreal lower = -1.0, mstreal upper = -1.0);
     
     set<Residue*> getInteractingRes(Residue* Ri, vdwContactType contType = ALL);
     vector<pair<Residue*,Residue*>> getInteractingResPairs(vdwContactType contType = ALL);
@@ -121,6 +121,7 @@ protected:
     void setResidues(vector<Residue*> resIVec, vector<Residue*> resJVec);
     void preparePS(vector<Residue*> toAdd = {});
     void findAllContacts();
+    void setVDWBounds(mstreal lower = -1.0, mstreal upper = -1.0);
 
     bool isValid(Residue* Ri, Residue* Rj);
     vdwContactType classifyContact(Atom* Ai, Atom* Aj);

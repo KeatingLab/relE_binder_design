@@ -12,7 +12,7 @@ enum extensionDirection {NTERM, CTERM, EITHER};
 class clusterDBSegments {
     public:
         clusterDBSegments(int _segmentLength = 8) {
-            if (_segmentLength % 2 != 0) MstUtils::error("Segment length must be odd","clusterDBSegments::clusterDBSegments");
+            if (_segmentLength % 2 != 0) MstUtils::error("Segment length must be even","clusterDBSegments::clusterDBSegments");
             segmentLength = _segmentLength;
         }
         ~clusterDBSegments() {
@@ -56,7 +56,9 @@ class segmentGraph {
         vector<Structure*> getNtermNeighbors(string nodeName);
         vector<Structure*> getCtermNeighbors(string nodeName);
         vector<Structure*> getAllNodes() {return allNodes;}
+        Structure* getNodeByName(string nodeName);
         int getNodeDesignability(string nodeName);
+        int getSegmentLength() {return allNodes.front()->residueSize();}
         int getOverlapLength() {return allNodes.front()->residueSize()/2;}
 
         void constructGraphFromSegments(vector<Structure*> segments, mstreal RMSDcutoff = 0.25, vector<int> segmentDesignability = {});
@@ -104,5 +106,23 @@ class sampleSegmentOverlaps {
         vector<Structure*> extensionSegments;
 };
 
+class searchSegments {
+    public:
+        searchSegments(string overlapGraphPath) : graph(overlapGraphPath) {;}
+
+        mstreal findLowestRMSDSegment(Structure* query);
+
+        int getSegLen() {return graph.getSegmentLength();}
+        Structure getClosestMatch();
+        int getNumMatchesInDB();
+
+    private:
+        segmentGraph graph;
+
+        string matchingSegmentName = "";
+        mstreal RMSDToMatch = -1.0;
+
+        RMSDCalculator calc;
+};
 
 #endif

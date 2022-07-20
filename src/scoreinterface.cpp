@@ -552,3 +552,31 @@ vector<mstreal> binderScorer::getJointProbability(vector<vector<mstreal>> aaDist
     for (int i = 0; i < jointDist.size(); i++) jointDist[i] = jointDist[i]/normConst;
     return jointDist;
 }
+
+/* --- --- --- --- --- binderBackboneScorer --- --- --- --- --- */
+
+mstreal binderBackboneScorer::scoreBackbone(Structure* S) {
+    if (!info_out.is_open()) openFile();
+    vector<Residue*> Sresidues = S->getResidues();
+    int segmentLength = segmentSearcher.getSegLen();
+    mstreal total_score = 0;
+    if (S->residueSize() < segmentLength) MstUtils::error("The length of segments in the library is longer than the structure that is to be scored","binderBackboneScorer::scoreBackbone");
+    for (int i = 0; i < S->residueSize() - segmentLength + 1; i++) {
+        Structure segment(vector<Residue*>(Sresidues.begin()+i,Sresidues.begin()+i+segmentLength));
+        mstreal RMSD = segmentSearcher.findLowestRMSDSegment(&segment);
+        int nMatches = segmentSearcher.getNumMatchesInDB();
+        mstreal score = -log(nMatches+1);
+        cout << "Found segment matching position " << i << " with RMSD: " << RMSD;
+        cout << " and nMatches: " << nMatches << endl;
+        info_out << name << "," << i << ",";
+        info_out << segmentLength << "," << nMatches << ",";
+        info_out << score << endl;
+    }
+    return total_score;
+};
+
+void binderBackboneScorer::openFile() {
+    string fileName = name + "_backboneSegmentScore.csv";
+    MstUtils::openFile(info_out,fileName,fstream::out);
+    info_out << "name,nTermResIdx,segLen,nMatches,score" << endl;
+};

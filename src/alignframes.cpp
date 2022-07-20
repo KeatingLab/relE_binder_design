@@ -33,7 +33,7 @@ void proteinFrameDB::addTarget(const augmentedStructure &S)
 
 void proteinFrameDB::readDBFile(string dbPath)
 {
-    cout << "Reading the DB..." << endl;
+    cout << "Reading the structure DB..." << endl;
     MstTimer timer; timer.start();
     fstream ifs;
     MstUtils::openFile(ifs, dbPath, fstream::in | fstream::binary, "alignInteractingFrames::readDBFile");

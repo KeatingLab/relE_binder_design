@@ -202,6 +202,9 @@ class binderChainExtension {
         void openTrajectoryFile(string pathToFile);
         void closeTrajectoryFile() {traj_out.close();}
 
+        void openScoreFile(string pathToFile);
+        void closeScoreFile() {score_out.close();}
+
     private:
         MstTimer timer;
 
@@ -219,6 +222,7 @@ class binderChainExtension {
 
         // Recording
         fstream traj_out;
+        fstream score_out;
         int state_count;
 };
 

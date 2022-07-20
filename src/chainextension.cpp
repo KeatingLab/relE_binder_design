@@ -420,6 +420,7 @@ void binderChainExtension::extendChain(int lengthToExtend, extensionDirection te
     vector<scoredBinder*> selectedBinderExtensions;
 
     openTrajectoryFile(anchorName+".traj.pdb");
+    openScoreFile(anchorName+".scores.csv");
     state_count = 1;
 
     scoredBinder* binder = new scoredBinder(anchorSegment,"anchor",state_count);
@@ -527,9 +528,11 @@ void binderChainExtension::extendChain(int lengthToExtend, extensionDirection te
     // Write out selected binders to PDB files
     for (scoredBinder* binder : selectedBinders) {
         binder->topology.writeFusedStructureToPDB(binder->name+".fin");
+        score_out << binder->name << "," << binder->score << endl;
         delete binder;
     }
     closeTrajectoryFile();
+    closeScoreFile();
 };
 
 void binderChainExtension::coverChainWithExtensionSegments(Chain* chainToCover, extensionDirection terminus, int beamWidth) {
@@ -546,6 +549,7 @@ void binderChainExtension::coverChainWithExtensionSegments(Chain* chainToCover, 
     anchorName = chainToCover->getParent()->getName();
     
     openTrajectoryFile(anchorName+".traj.pdb");
+    openScoreFile(anchorName+".scores.csv");
     state_count = 1;
 
     vector<scoredBinder*> binderExtensions;
@@ -655,9 +659,11 @@ void binderChainExtension::coverChainWithExtensionSegments(Chain* chainToCover, 
     // Write out selected binder as a PDB file
     for (scoredBinder* binder : selectedBinders) {
         binder->topology.writeFusedStructureToPDB(binder->name+".fin");
+        score_out << binder->name << "," << binder->score << endl;
         delete binder;
     }
     closeTrajectoryFile();
+    closeScoreFile();
 }
 
 bool binderChainExtension::extensionSegmentClash(Structure* extensionSegment) {
@@ -684,4 +690,9 @@ mstreal binderChainExtension::scoreBinder(scoredBinder& topology, int segmentDes
 
 void binderChainExtension::openTrajectoryFile(string pathToFile) {
     MstUtils::openFile(traj_out,pathToFile,fstream::out);
+};
+
+void binderChainExtension::openScoreFile(string pathToFile) {
+    MstUtils::openFile(score_out,pathToFile,fstream::out);
+    score_out << "name,score" << endl;
 };

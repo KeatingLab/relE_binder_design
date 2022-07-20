@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
     op.setTitle("Scores a protein-protein interface by finding the prevalence of pairwise interaction geometries in the PDB");
     op.addOption("frameDB","Path to mobile frame database",true);
     op.addOption("contactData","Path to a JSON file describing probability density of contacts",true);
+    op.addOption("segmentOverlapGraph","Path to a segment overlap graph file. If provided, will compute the 'segment score' for the given binder structures",false);
     op.addOption("complexPDB","A PDB file defining the complex between the protein target and designed binder. The target must have a defined sequence",false);
     op.addOption("binderChains","The binder chain ID(s) delimited by '_', e.g. '0_1'. If in --targetPDB mode, will be removed from the structure before scoring",false);
     op.addOption("targetChains","--complexPDB mode only. The protein chain(s) delimited by '_', e.g. 'A_B'",false);
@@ -39,6 +40,7 @@ int main(int argc, char *argv[]) {
 
     string mobileFrameDB = op.getString("frameDB");
     string contactData = op.getString("contactData");
+    string segmentOverlapGraphPath = op.getString("segmentOverlapGraph",""); 
     string complexPDB = op.getString("complexPDB","");
     string targetChainIDsString = op.getString("targetChains");
     string binderChainIDsString = op.getString("binderChains");
@@ -62,6 +64,14 @@ int main(int argc, char *argv[]) {
     params.renormalizeProbabilities = renormalizeProbabilities;
     params.verbose = verbose;
 
+    binderBackboneScorer* backboneScorer = nullptr;
+    if (segmentOverlapGraphPath != "") {
+        string name;
+        if (targetPDB != "") name = MstSys::splitPath(targetPDB,1);
+        else name = MstSys::splitPath(complexPDB,1);
+        backboneScorer = new binderBackboneScorer(segmentOverlapGraphPath,name);
+    }
+
     if (complexPDB != "") {
         augmentedStructure complex(complexPDB);
         scorer = new binderScorer(params,complex,binderChainIDsString,targetChainIDsString);
@@ -82,6 +92,8 @@ int main(int argc, char *argv[]) {
         scorer->writeContactPropertyToFile();
         scorer->writeResiduesClashesToSimpleFile();
         scorer->writePSSM();
+
+        if (backboneScorer != nullptr) backboneScorer->scoreBackbone(scorer->getBinder());
 
     } else {
         // score target with multiple designed binders mode
@@ -110,6 +122,7 @@ int main(int argc, char *argv[]) {
             for (string structurePath : structuresList) {
                 cout << "Loading " << structurePath << " structure " << count << "/" << structuresList.size() << endl;
                 augmentedStructure binder(structurePath);
+                binder.setName(MstSys::splitPath(structurePath,1));
                 scorer->setBinder(&binder);
                 scorer->defineInterfaceByPotentialContacts();
 
@@ -120,6 +133,9 @@ int main(int argc, char *argv[]) {
                 scorer->writeResidueClashesToFile();
                 scorer->writeBinderScoresToFile();
                 scorer->writeContactPropertyToFile("");
+
+                if (backboneScorer != nullptr) backboneScorer->scoreBackbone(&binder);
+
                 count++;
             }
         } else {
@@ -156,12 +172,18 @@ int main(int argc, char *argv[]) {
                     scorer->writePSSM(pssmFilePrefix);
                     seed->writePDB(pdbFilePrefix+seed->getName()+".pdb");
 
+                    if (backboneScorer != nullptr) backboneScorer->scoreBackbone(&binder);
+
                     delete seed;
                     count++;
                 }
             } else {
                 while (seedBin.hasNext()) {
                     Structure* seed = seedBin.next();
+                    if (seed->residueSize() < 4) {
+                        delete seed;
+                        continue;
+                    }
                     cout << "scoring (" << count << "/" << totalNumSeeds << ") " << seed->getName() << endl;
 
                     augmentedStructure binder(*seed);
@@ -174,6 +196,8 @@ int main(int argc, char *argv[]) {
                     scorer->writeContactScoresToFile();
                     scorer->writeResidueClashesToFile();
                     scorer->writeBinderScoresToFile();
+
+                    if (backboneScorer != nullptr) backboneScorer->scoreBackbone(seed);
 
                     delete seed;
                     count++;

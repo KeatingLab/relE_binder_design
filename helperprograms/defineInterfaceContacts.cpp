@@ -15,12 +15,16 @@ int main(int argc, char *argv[]) {
     op.addOption("contactData","Path to a JSON file describing probability density of contacts",true);
     op.addOption("complexPDB","A PDB file defining the complex between the protein target and designed binder. The target must have a defined sequence",false);
     op.addOption("binderChainID","The ID of the binder chain",true);
+    op.addOption("lowerBound", "The lower bound of the scale factor that determines the range of distance that constitutes a VDW contact (default 0.7)");
+    op.addOption("upperBound", "The upper bound of the scale factor that determines the range of distance that constitutes a VDW contact (default 1.2)");
     op.addOption("vdwContacts","If provided, will define the interface using VDW contacts, otherwise will use CB definition. Not compatible with --targetPDB mode",false);
     op.setOptions(argc,argv);
 
     string contactData = op.getString("contactData");
     string complexPDBPath = op.getString("complexPDB","");
     string binderChainID = op.getString("binderChainID");
+    mstreal lowerBound = op.getReal("lowerBound");
+    mstreal upperBound = op.getReal("upperBound");
     bool defineVDWContacts = op.isGiven("vdwContacts");
 
     string fileType = (defineVDWContacts) ? "vdw" : "potential";
@@ -47,7 +51,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (defineVDWContacts) {
-        vdwContacts conts(binderChains,targetChains);
+        vdwContacts conts(binderChains,targetChains,lowerBound,upperBound);
         vector<pair<Residue*,Residue*>> contPairs = conts.getInteractingResPairs();
         for (auto cont : contPairs) {
             cont_out << cont.first->getChainID() << cont.first->getNum() << "\t";

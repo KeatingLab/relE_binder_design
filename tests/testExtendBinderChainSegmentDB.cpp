@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
     string segmentOverlapGraphPath = op.getString("segmentOverlapGraph");
     string frameDBPath = op.getString("frameDB");
     string potcontsJSONPath = op.getString("potcontsJSON");
-    string terminus = op.getString("terminus");
+    string terminus = op.getString("terminus","");
     int16_t extendLength = op.getInt("extendLength",12);
     string mode = op.getString("mode","greedy");
     int beamWidth = op.getInt("beamWidth",5);
@@ -44,7 +44,8 @@ int main(int argc, char *argv[]) {
     } else if ((terminus == "C")) {
         extDir = extensionDirection::CTERM;
     } else {
-        MstUtils::error("Must specify either 'N' or 'C' for --terminus");
+        extDir = extensionDirection::EITHER;
+        cout << "Will extend in both the N- and C-terminal directions" << endl;
     }
     if ((mode != "random")&(mode != "greedy")&(mode != "beam")) MstUtils::error("Must specify either 'random', 'greedy', or 'beam' for --mode");
 
