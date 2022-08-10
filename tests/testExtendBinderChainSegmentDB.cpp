@@ -38,36 +38,36 @@ int main(int argc, char *argv[]) {
     string mode = op.getString("mode","greedy");
     int beamWidth = op.getInt("beamWidth",5);
 
-    extensionDirection extDir;
-    if ((terminus == "N")) {
-        extDir = extensionDirection::NTERM;
-    } else if ((terminus == "C")) {
-        extDir = extensionDirection::CTERM;
-    } else {
-        extDir = extensionDirection::EITHER;
-        cout << "Will extend in both the N- and C-terminal directions" << endl;
-    }
-    if ((mode != "random")&(mode != "greedy")&(mode != "beam")) MstUtils::error("Must specify either 'random', 'greedy', or 'beam' for --mode");
+    // extensionDirection extDir;
+    // if ((terminus == "N")) {
+    //     extDir = extensionDirection::NTERM;
+    // } else if ((terminus == "C")) {
+    //     extDir = extensionDirection::CTERM;
+    // } else {
+    //     extDir = extensionDirection::EITHER;
+    //     cout << "Will extend in both the N- and C-terminal directions" << endl;
+    // }
+    // if ((mode != "random")&(mode != "greedy")&(mode != "beam")) MstUtils::error("Must specify either 'random', 'greedy', or 'beam' for --mode");
 
-    binderScorerParams params;
-    params.frameDBPath = frameDBPath;
-    params.potentialContactsJSONPath = potcontsJSONPath;
-    params.posCut = 1.0;
-    params.oriCut = 10;
-    params.renormalizeProbabilities = false;
+    // binderScorerParams params;
+    // params.frameDBPath = frameDBPath;
+    // params.potentialContactsJSONPath = potcontsJSONPath;
+    // params.posCut = 1.0;
+    // params.oriCut = 10;
+    // params.renormalizeProbabilities = false;
 
-    binderChainExtension chainExt(target,segmentOverlapGraphPath,params);
-    chainExt.setBinderAnchor(anchor);
+    // binderChainExtension chainExt(target,segmentOverlapGraphPath,params);
+    // chainExt.setBinderAnchor(anchor);
 
-    if (mode == "random") {
-        cout << "Extend mode: random" << endl;
-        chainExt.extendChain(extendLength,extDir,extensionMode::RANDOM);
-    } else if (mode == "greedy") {
-        cout << "Extend mode: greedy" << endl;
-        chainExt.extendChain(extendLength,extDir,extensionMode::GREEDY);
-    } else if (mode == "beam") {
-        cout << "Extend mode: beam" << endl;
-        chainExt.extendChain(extendLength,extDir,extensionMode::BEAM,beamWidth);
-    }
+    // if (mode == "random") {
+    //     cout << "Extend mode: random" << endl;
+    //     chainExt.extendChain(extendLength,extDir,extensionMode::RANDOM);
+    // } else if (mode == "greedy") {
+    //     cout << "Extend mode: greedy" << endl;
+    //     chainExt.extendChain(extendLength,extDir,extensionMode::GREEDY);
+    // } else if (mode == "beam") {
+    //     cout << "Extend mode: beam" << endl;
+    //     chainExt.extendChain(extendLength,extDir,extensionMode::BEAM,beamWidth);
+    // }
     return 0;
 }

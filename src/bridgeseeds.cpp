@@ -218,7 +218,7 @@ void findSeedBridge::setSearchQuery(Structure* S1, Structure* S2) {
     terminalResidueBBAtoms = seedBridge::getBridgeTerminusFromStructure(ntermR,ctermR,bridgeData.getTerminusLength(),true);
 }
 
-void findSeedBridge::searchSeedsByCADistance(mstreal distanceCutoff) {
+int findSeedBridge::searchSeedsByCADistance(mstreal distanceCutoff) {
     cout << "distanceCutoff used for searching: " << distanceCutoff << " Å" << endl;
 
     // reset from previous search
@@ -236,6 +236,7 @@ void findSeedBridge::searchSeedsByCADistance(mstreal distanceCutoff) {
         matches.push_back(bridgeMatch);
     }
     cout << "Found " << matches.size() << " matching bridges by comparing CA distances" << endl;
+    return matches.size();
 }
 
 vector<mstreal> findSeedBridge::getBridgeLengthDist() {
@@ -268,7 +269,7 @@ void findSeedBridge::loadSeedBridgeDataIntoAPV() {
     cout << "Done loading into APV." << endl; 
 }
 
-void findSeedBridge::verifyMatchesBySuperposition(mstreal RMSDCutoff) {
+int findSeedBridge::verifyMatchesBySuperposition(mstreal RMSDCutoff) {
     if (matches.empty()) MstUtils::error("Must search for matches before verifying","findSeedBridge::verifyMatchesBySuperposition");
     for (seedBridge* sB : matches) {
         vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
@@ -278,6 +279,7 @@ void findSeedBridge::verifyMatchesBySuperposition(mstreal RMSDCutoff) {
         }
     }
     cout << "Verified " << verifiedMatches.size() << " bridges with RMSD < " << RMSDCutoff << " to the query" << endl;
+    return verifiedMatches.size();
 }
 
 vector<mstreal> findSeedBridge::getVerifiedBridgeLengthDist() {
@@ -308,6 +310,21 @@ vector<Structure> findSeedBridge::getVerifiedBridgeStructures(int bridgeLength) 
             vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
             calc.align(bridgeTerminus,terminalResidueBBAtoms,bridgeAndTerminus);
             result.push_back(bridgeAndTerminus);
+        }
+    }
+    return result;
+}
+
+vector<Structure> findSeedBridge::getRepresentativeForEachLength() {
+    vector<Structure> result;
+    set<int> stored;
+    for (seedBridge* sB : verifiedMatches) {
+        if (stored.count(sB->getBridgeLength()) == 0) {
+            Structure bridgeAndTerminus = bridgeData.getBridgeAndTerminusFromDB(sB);
+            vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
+            calc.align(bridgeTerminus,terminalResidueBBAtoms,bridgeAndTerminus);
+            result.push_back(bridgeAndTerminus);
+            stored.insert(sB->getBridgeLength());
         }
     }
     return result;

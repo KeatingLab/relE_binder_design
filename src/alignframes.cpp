@@ -2,36 +2,36 @@
 
 /* --- --- --- --- --- proteinFrameDB --- --- --- --- --- */
 
-const augmentedStructure& proteinFrameDB::getTarget(int i) {
+const augmentedStructure& augmentedStructureDB::getTarget(int i) {
     if ((i < 0) || (i >= targets.size()))
         MstUtils::error("Provided value " + MstUtils::toString(i) + " is out of range: (0," + MstUtils::toString(targets.size() - 1), "proteinFrameDB::getTarget");
     return *targets[i];
 }
 
-Residue *proteinFrameDB::getResidue(int target_i, int res_i) {
+Residue *augmentedStructureDB::getResidue(int target_i, int res_i) {
     if ((target_i < 0) || (target_i >= targets.size())) MstUtils::error("Provided value " + MstUtils::toString(target_i) + " is out of range of targets: (0," + MstUtils::toString(targets.size() - 1), "proteinFrameDB::getResidue");
     if ((res_i < 0) || (res_i >= targets[target_i]->residueSize())) MstUtils::error("Provided value " + MstUtils::toString(res_i) + " is out of range of residues: (0," + MstUtils::toString(targets[target_i]->residueSize() - 1), "proteinFrameDB::getResidue");
     return &targets[target_i]->getResidue(res_i);
 }
 
-residueFrame *proteinFrameDB::getResidueFrame(int target_i, int res_i) {
+residueFrame *augmentedStructureDB::getResidueFrame(int target_i, int res_i) {
     if ((target_i < 0) || (target_i >= targets.size())) MstUtils::error("Provided value " + MstUtils::toString(target_i) + " is out of range of targets: (0," + MstUtils::toString(targets.size() - 1), "proteinFrameDB::getResidueFrame");
     if ((res_i < 0) || (res_i >= targets[target_i]->residueSize())) MstUtils::error("Provided value " + MstUtils::toString(res_i) + " is out of range of residues: (0," + MstUtils::toString(targets[target_i]->residueSize() - 1), "proteinFrameDB::getResidueFrame");
     return targets[target_i]->getResidueFrame(res_i);
 }
 
-void proteinFrameDB::addTarget(augmentedStructure *S)
+void augmentedStructureDB::addTarget(augmentedStructure *S)
 {
     targets.push_back(S);
 }
 
-void proteinFrameDB::addTarget(const augmentedStructure &S)
+void augmentedStructureDB::addTarget(const augmentedStructure &S)
 {
     augmentedStructure *newTarget = new augmentedStructure(S);
     targets.push_back(newTarget);
 }
 
-void proteinFrameDB::readDBFile(string dbPath)
+void augmentedStructureDB::readDBFile(string dbPath)
 {
     cout << "Reading the structure DB..." << endl;
     MstTimer timer; timer.start();
@@ -82,7 +82,7 @@ void proteinFrameDB::readDBFile(string dbPath)
             }
             else
             {
-                MstUtils::error("unknown section type" + MstUtils::toString(sect) + ", while reading database file " + dbPath, "alignInteractingFrames::readDBFile");
+                MstUtils::error("unknown section type: " + MstUtils::toString(sect) + ", while reading database file " + dbPath, "alignInteractingFrames::readDBFile");
             }
         }
         ti++;
@@ -92,7 +92,7 @@ void proteinFrameDB::readDBFile(string dbPath)
     cout << "Loaded database with " << targets.size() << " structures in " << timer.getDuration() << " s" << endl;
 }
 
-void proteinFrameDB::writeDBFile(string dbPath)
+void augmentedStructureDB::writeDBFile(string dbPath)
 {
     fstream ofs;
     MstUtils::openFile(ofs, dbPath, fstream::out | fstream::binary, "alignInteractingFrames::writeDBFile");
@@ -124,7 +124,7 @@ void proteinFrameDB::writeDBFile(string dbPath)
     ofs.close();
 }
 
-const set<int>& proteinFrameDB::getContacts(int target_i, int res_i, bool BBint) {
+const set<int>& augmentedStructureDB::getContacts(int target_i, int res_i, bool BBint) {
     if ((target_i < 0) || (target_i >= targets.size())) MstUtils::error("Provided value " + MstUtils::toString(target_i) + " is out of range of targets: (0," + MstUtils::toString(targets.size() - 1), "proteinFrameDB::getContacts");
     if ((res_i < 0) || (res_i >= targets[target_i]->residueSize())) MstUtils::error("Provided value " + MstUtils::toString(res_i) + " is out of range of residues: (0," + MstUtils::toString(targets[target_i]->residueSize() - 1), "proteinFrameDB::getContacts");
     return vdwContacts[target_i][res_i];
@@ -141,31 +141,35 @@ void alignInteractingFrames::findMobileFrames() {
     if (aa == SeqTools::unknownIdx())
         MstUtils::error("Must set amino acid before finding interacting residues", "alignInteractingFrames::findInteractingRes");
     allInteractingFrames.clear();
+    allInteractingRes.clear();
     interactionData[aa] = map<int,int>();
     map<int,int>& interactionDataForAA = interactionData[aa];
     for (int i = 0; i <= 30; i++) interactionDataForAA[i] = 0;
     for (int target_idx = 0; target_idx < db.numTargets(); target_idx++) {
         const augmentedStructure& aS = db.getTarget(target_idx);
         for (int res_i = 0; res_i < aS.residueSize(); res_i++) {
-            res_t res_i_aa = SeqTools::aaToIdx(aS.getResidue(res_i).getName());
+            Residue* Ri = &aS.getResidue(res_i);
+            res_t res_i_aa = SeqTools::aaToIdx(Ri->getName());
             if (res_i_aa != aa) {
                 continue;
             }
             const set<int> &interacting_res = db.getContacts(target_idx,res_i);
             interactionDataForAA[interacting_res.size()]++;
             for (int res_j : interacting_res) {
-                mobileFrame* frame = new mobileFrame(&aS.getResidue(res_j), target_idx, res_i, res_j, aa);
+                Residue* Rj = &aS.getResidue(res_j);
+                allInteractingRes.emplace_back(Ri,Rj,target_idx);
+                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, aa);
                 residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
                 Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
                 rFi_to_ref.apply(*frame);
                 allInteractingFrames.push_back(frame);
+                if (verbose) cout << target_idx << "," << res_i << "," << res_j << endl;
             }
         }
     }
 }
 
-Structure *alignInteractingFrames::getAlignedInteractingRes(int i)
-{
+Structure *alignInteractingFrames::getAlignedInteractingRes(int i) {
     if ((i < 0) || (i >= allInteractingFrames.size())) MstUtils::error("Provided value " + MstUtils::toString(i) + " is out of range: (0," + MstUtils::toString(allInteractingFrames.size() - 1), "alignInteractingFrames::getAlignedInteractingRes");
     mobileFrame* frame = allInteractingFrames[i];
 
@@ -206,6 +210,12 @@ void alignInteractingFrames::writeAlignedInteractingResToPDB(string pdbPath, mst
 void alignInteractingFrames::writeMobileFramesToBin(frameDB* frameBin) {
     for (mobileFrame* mF : allInteractingFrames) {
         frameBin->appendFrame(mF);
+    }
+}
+
+void alignInteractingFrames::writeResiduePairsToBin(resPairDB* rPBin) {
+    for (int i = 0; i < allInteractingRes.size(); i++) {
+        rPBin->appendResPair(&allInteractingRes[i]);
     }
 }
 
@@ -416,4 +426,142 @@ mobileFrame* frameDB::readNextFileSection() {
     if (sect != 'E') MstUtils::error("The data should terminate with 'E'. frame database: " + frameDBPath, "frameDB::readNextFileSection");
 
     return frame;
+}
+
+/* --- --- --- --- --- resPair --- --- --- --- --- */
+
+resPair::resPair(Residue* Ri, Residue* Rj, int _target) : target(_target) {
+    res_i = Ri->getResidueIndex();
+    res_j = Rj->getResidueIndex();
+    res_i_aa = SeqTools::aaToIdx(Ri->getName());
+    res_j_aa = SeqTools::aaToIdx(Rj->getName());
+    vector<Atom*> RiBBAtoms = RotamerLibrary::getBackbone(Ri);
+    vector<Atom*> RjBBAtoms = RotamerLibrary::getBackbone(Rj);
+    resPairAtoms.insert(resPairAtoms.end(),RiBBAtoms.begin(),RiBBAtoms.end());
+    resPairAtoms.insert(resPairAtoms.end(),RjBBAtoms.begin(),RjBBAtoms.end());
+    computeDistancesFromBBAtoms();
+}
+
+void resPair::computeDistancesFromBBAtoms() {
+    mstreal NDistance = resPairAtoms[0]->getCoor().distance(resPairAtoms[4]->getCoor());
+    mstreal CaDistance = resPairAtoms[1]->getCoor().distance(resPairAtoms[5]->getCoor());
+    mstreal CDistance = resPairAtoms[2]->getCoor().distance(resPairAtoms[6]->getCoor());
+    bbAtomDistances = CartesianPoint(NDistance,CaDistance,CDistance);
+}
+
+void resPair::writeData(ostream& ofs) {
+    // write each atom
+    for (int i = 0; i < resPairAtoms.size(); i++) writeAtomToBin(resPairAtoms[i],ofs);
+
+    // write DB location
+    MstUtils::writeBin(ofs,target);
+    MstUtils::writeBin(ofs,res_i);
+    MstUtils::writeBin(ofs,res_j);
+
+    // write res types
+    MstUtils::writeBin(ofs,res_i_aa);
+    MstUtils::writeBin(ofs,res_j_aa);
+}
+
+void resPair::readData(istream& ifs) {
+    for (int i = 0; i < 8; i++) {
+        Atom* A = readAtomFromBin(ifs);
+        resPairAtoms.push_back(A);
+    }
+    ownsAtoms = true;
+
+    MstUtils::readBin(ifs, target);
+    MstUtils::readBin(ifs, res_i);
+    MstUtils::readBin(ifs, res_j);
+
+    MstUtils::readBin(ifs, res_i_aa);
+    MstUtils::readBin(ifs, res_j_aa);
+
+    computeDistancesFromBBAtoms();
+}
+
+void resPair::writeAtomToBin(Atom* A, ostream& ofs) {
+    // write x,y,x coordinate (discard the rest of the information)
+    MstUtils::writeBin(ofs,A->getX());
+    MstUtils::writeBin(ofs,A->getY());
+    MstUtils::writeBin(ofs,A->getZ());
+}
+
+Atom* resPair::readAtomFromBin(istream& ifs) {
+    Atom* A = new Atom();
+    mstreal x, y, z;
+    MstUtils::readBin(ifs,x);
+    MstUtils::readBin(ifs,y);
+    MstUtils::readBin(ifs,z);
+    A->setX(x);
+    A->setY(y);
+    A->setZ(z);
+    A->stripInfo();
+    return A;
+}
+
+/* --- --- --- --- --- resPairDB --- --- --- --- --- */
+
+bool resPairDB::hasNext() {
+    if (!readMode) MstUtils::error("hasNext not supported in write mode","resPairDB::hasNext");
+    return fs.peek() != EOF;
+}
+
+void resPairDB::skip() {
+    if (!readMode) MstUtils::error("skip not supported in write mode","resPairDB::skip");
+    resPair* rP = readNextFileSection();
+    delete rP;
+}
+
+void resPairDB::reset() {
+    if (!readMode) MstUtils::error("reset not supported in write mode","resPairDB::reset");
+    fs.clear();
+    fs.seekg(0,fs.beg);
+}
+
+resPair* resPairDB::next() {
+    if (!readMode) MstUtils::error("next not supported in write mode","resPairDB::next");
+    return readNextFileSection();
+}
+
+vector<resPair*> resPairDB::loadAllResPairs() {
+    vector<resPair*> loaded; 
+    reset();
+    while (hasNext()) {
+        resPair* mF = next();
+        loaded.push_back(mF);
+    }
+    return loaded;
+}
+
+void resPairDB::appendResPair(resPair* rP) {
+    if (readMode) MstUtils::error("appendResPair not supported in read mode","resPairDB::appendStructure");
+    if (!resPairAdded) {
+        resPairAdded = true;
+        MstUtils::writeBin(fs,version);
+    }
+    MstUtils::writeBin(fs,'F'); //start new frame section
+    rP->writeData(fs);
+    MstUtils::writeBin(fs,'E'); //the E is not necessary, but gives me flexibility in case I ever want to store more data in the file
+}
+
+void resPairDB::openFileStream() {
+    if (readMode) MstUtils::openFile(fs, resPairDBPath, fstream::in | fstream::binary, "resPairDB::openFileStream");
+    else MstUtils::openFile(fs, resPairDBPath, fstream::out | fstream::binary, "resPairDB::openFileStream");
+}
+
+resPair* resPairDB::readNextFileSection() {
+    //if beginning of file, advance past the version
+    if (fs.tellg() == 0) {
+        int version; MstUtils::readBin(fs, version);
+    }
+    char sect;
+    MstUtils::readBin(fs, sect);
+    if (sect != 'F') MstUtils::error("The first section should be a residueFrame. frame database: " + resPairDBPath, "resPairDB::readNextFileSection");
+    resPair* rP = new resPair;
+    rP->readData(fs);
+    MstUtils::readBin(fs, sect);
+    if (sect != 'E') MstUtils::error("The data should terminate with 'E'. frame database: " + resPairDBPath, "resPairDB::readNextFileSection");
+
+    return rP;
 }

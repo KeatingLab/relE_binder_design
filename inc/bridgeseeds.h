@@ -48,7 +48,7 @@ class seedBridgeDB {
 
         void loadProteinStructures(string pathToStructureDB) {
             if (structureDB) delete structureDB;
-            structureDB = new proteinFrameDB();
+            structureDB = new augmentedStructureDB();
             structureDB->readDBFile(pathToStructureDB);
         }
         void unloadProteinStructures() {delete structureDB; structureDB = nullptr;}
@@ -66,7 +66,7 @@ class seedBridgeDB {
         Structure getBridgeAndTerminusFromDB(seedBridge* sB);
 
     private:
-        proteinFrameDB* structureDB = nullptr;
+        augmentedStructureDB* structureDB = nullptr;
         vector<seedBridge*> allBridges;
 
         int maxBridgeLength = -1;
@@ -83,15 +83,17 @@ class findSeedBridge {
         void setSearchQuery(Structure* S1, Structure* S2);
 
         // The initial search is performed by comparing the distance between the CA of three terminal residues on each side
-        void searchSeedsByCADistance(mstreal distanceCutoff);
+        int searchSeedsByCADistance(mstreal distanceCutoff);
         vector<mstreal> getBridgeLengthDist();
         vector<seedBridge*> getBridgeInfo();
 
         // The matches are then verified by performing optimal superposition and calculating RMSD (this ensures proper handedness)
         void loadStructureDB(string structureDBPath) {bridgeData.loadProteinStructures(structureDBPath);}
-        void verifyMatchesBySuperposition(mstreal RMSDCutoff = 0.5);
+        int verifyMatchesBySuperposition(mstreal RMSDCutoff = 0.5);
         vector<mstreal> getVerifiedBridgeLengthDist();
         vector<Structure> getVerifiedBridgeStructures(int bridgeLength = -1);
+
+        vector<Structure> getRepresentativeForEachLength();
 
     protected:
         void loadSeedBridgeDataIntoAPV();

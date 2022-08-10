@@ -32,29 +32,29 @@ int main(int argc, char *argv[]) {
     string potcontsJSONPath = op.getString("potcontsJSON");
     string terminus = op.getString("terminus");
 
-    extensionDirection extDir;
-    if ((terminus == "N")) {
-        extDir = extensionDirection::NTERM;
-    } else if ((terminus == "C")) {
-        extDir = extensionDirection::CTERM;
-    } else {
-        MstUtils::error("Must specify either 'N' or 'C' for --terminus");
-    }
+    // extensionDirection extDir;
+    // if ((terminus == "N")) {
+    //     extDir = extensionDirection::NTERM;
+    // } else if ((terminus == "C")) {
+    //     extDir = extensionDirection::CTERM;
+    // } else {
+    //     MstUtils::error("Must specify either 'N' or 'C' for --terminus");
+    // }
 
-    binder.setName(MstSys::splitPath(binder.getName(),1));
-    if (binder.chainSize() != 1) MstUtils::error("Binder structure must have a single chain","testExtendBinderChainSegmentDBCover::main");
-    Chain* C = &binder.getChain(0);
+    // binder.setName(MstSys::splitPath(binder.getName(),1));
+    // if (binder.chainSize() != 1) MstUtils::error("Binder structure must have a single chain","testExtendBinderChainSegmentDBCover::main");
+    // Chain* C = &binder.getChain(0);
 
-    binderScorerParams params;
-    params.frameDBPath = frameDBPath;
-    params.potentialContactsJSONPath = potcontsJSONPath;
-    params.posCut = 1.0;
-    params.oriCut = 10;
-    params.renormalizeProbabilities = false;
+    // binderScorerParams params;
+    // params.frameDBPath = frameDBPath;
+    // params.potentialContactsJSONPath = potcontsJSONPath;
+    // params.posCut = 1.0;
+    // params.oriCut = 10;
+    // params.renormalizeProbabilities = false;
 
-    binderChainExtension chainExt(target,segmentOverlapGraphPath,params);
+    // binderChainExtension chainExt(target,segmentOverlapGraphPath,params);
 
-    chainExt.coverChainWithExtensionSegments(C,extDir);
+    // chainExt.coverChainWithExtensionSegments(C,extDir);
 
     return 0;
 }

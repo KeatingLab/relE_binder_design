@@ -168,17 +168,14 @@ void interfaceSearch::writeContactPropertyToFile(string name) {
 
 /* --- --- --- --- --- binderScorer --- --- --- --- --- */
 
-binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure& _target) : target(_target), posCut(params.posCut), oriCut(params.oriCut) {
-    verbose = params.verbose;
+binderScorer::binderScorer(const binderScorerParams& _params, Structure& _target) : params(_params), target(_target) {
     aaTypes = SeqToolsExtension::getAANames();
     targetName = MstSys::splitPath(target.getName(),1);
-    MiscTools::extractBackboneFromStructure(target,targetBackbone);
-    prepareVoxelGrids(params.frameDBPath);
     pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
+    setBackgroundSurfaceProbabilities();
 }
 
-binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure& complex, string binderChainIDsString, string targetChainIDsString) : posCut(params.posCut), oriCut(params.oriCut) {
-    verbose = params.verbose;
+binderScorer::binderScorer(const binderScorerParams& _params, Structure& complex, string binderChainIDsString, string targetChainIDsString) : params(_params) {
     aaTypes = SeqToolsExtension::getAANames();
 
     vector<string> targetChainIDs = MstUtils::split(targetChainIDsString,"_");
@@ -204,16 +201,13 @@ binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure&
     for (string binderChainID : binderChainIDs) {
         vector<Residue*> binderChainResidues = complex.getChainByID(binderChainID)->getResidues();
         binderResidues.insert(binderResidues.end(),binderChainResidues.begin(),binderChainResidues.end());
-        for (Residue* R : binderResidues) R->setName("UNK");
+        // for (Residue* R : binderResidues) R->setName("UNK");
     }
     if (binderResidues.empty()) MstUtils::error("No binder residues found","binderScorer::binderScorer");
-    binder = new augmentedStructure(binderResidues);
+    binder = new Structure(binderResidues);
     binder->setName(targetName);
     complexMode = true; // will need to remember to delete this chain
     
-    MiscTools::extractBackboneFromStructure(target,targetBackbone);
-    prepareVoxelGrids(params.frameDBPath);
-
     // define interface by looking at VDW contacts
     defineInterfaceUsingVDWContacts();
 
@@ -222,100 +216,152 @@ binderScorer::binderScorer(const binderScorerParams& params, augmentedStructure&
 
     // in case the user will switch to using potential contacts later, load that data
     pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
+    setBackgroundSurfaceProbabilities();
 }
 
-void binderScorer::setBinder(augmentedStructure* _binder) {
-    if (complexMode) MstUtils::error("Cannot set another binder in complex mode","binderScorer::setBinder");
+void binderScorer::setBinder(Structure* _binder) {
     binder = _binder;
-    // for (Residue* R : binder->getResidues()) R->setName("UNK");
-    pConts.setBinderResidues(binder->getResidues());
-
-    // reset all variables
-    designabilityScore = 0.0;
-    numNonDesignable = 0;
 }
 
 void binderScorer::setTargetBindingSiteResidues(vector<Residue*> sel) {
-    targetResidues.clear();
-    for (Residue* R : sel) targetResidues.insert(R);
-    cout << "Set " << targetResidues.size() << " target residues" << endl;
+    targetBindingResidues.clear();
+    for (Residue* R : sel) targetBindingResidues.insert(R);
+    cout << "Set " << targetBindingResidues.size() << " target residues" << endl;
     // setFrameProbabilityTables();
     pConts.setTargetResidues(sel);
 }
 
 void binderScorer::defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold) {
-    targetResidues.clear();
+    targetBindingResidues.clear();
     sasaCalculator calc(target);
     bool relative = true;
     map<Residue*,mstreal> relSASA = calc.getResidueSASA(relative);
     for (auto it : relSASA) {
-        if (it.second >= relSASAthreshold) targetResidues.insert(it.first);
+        if (it.second >= relSASAthreshold) targetBindingResidues.insert(it.first);
     }
-    cout << "Set " << targetResidues.size() << " target residues with relSASA threshold " << relSASAthreshold << endl;
+    cout << "Set " << targetBindingResidues.size() << " target residues with relSASA threshold " << relSASAthreshold << endl;
     // setFrameProbabilityTables();
-    vector<Residue*> targetResVec(targetResidues.begin(),targetResidues.end());
+    vector<Residue*> targetResVec(targetBindingResidues.begin(),targetBindingResidues.end());
     pConts.setTargetResidues(targetResVec);
 }
 
 int binderScorer::defineInterfaceByPotentialContacts() {
-    if (targetResidues.empty()) MstUtils::error("Must define target residues before interface","binderScorer::defineInterfaceByPotentialContacts");
+    if (targetBindingResidues.empty()) MstUtils::error("Must define target residues before interface","binderScorer::defineInterfaceByPotentialContacts");
+    if (binder->getResidues().empty()) MstUtils::error("Must define binder residues before interface","binderScorer::defineInterfaceByPotentialContacts");
     pConts.setBinderResidues(getBinderResidues());
     interfaceResidues = pConts.getContacts(false);
     cout << "Defined " << interfaceResidues.size() << " potential contacts" << endl;
-    // check that there are no target residues in the contacts that remain undefined
     for (auto pair : interfaceResidues) {
         Residue* R = pair.first;
-        if (targetResidues.find(R) == targetResidues.end()) MstUtils::error("Could not find target residue: "+R->getChainID()+MstUtils::toString(R->getNum()));
+        // check that there are no target residues in the contacts that remain undefined
+        if (targetBindingResidues.find(R) == targetBindingResidues.end()) MstUtils::error("Could not find target residue: "+R->getChainID()+MstUtils::toString(R->getNum()),"residueFrameBinderScorer::defineInterfaceByPotentialContacts");
+        // check that there are no target residues in the contacts with an unrecognized amino acid type
+        if (backgroundSurfaceProbabilities.find(SeqTools::aaToIdx(R->getName())) == backgroundSurfaceProbabilities.end()) MstUtils::error("Recognized residue types do not include target residue type: "+R->getName(),"binderScorer::defineInterfaceByPotentialContacts");
     }
-    interfaceCounts.clear();
-    interfaceScores.clear();
-    searchTimes.clear();
     return interfaceResidues.size();
 }
 
-mstreal binderScorer::scoreInterface() {
-    if (!interfaceScores.empty()) return designabilityScore;
-    else if (interfaceResidues.empty()) {
+void binderScorer::defineInterfaceUsingVDWContacts() {
+    if (!complexMode) MstUtils::error("Can only define interface using van der Waals contacts when scoring a full-atom complex","binderScorer::defineInterfaceUsingVDWContacts");
+    vdwContacts C(target.getResidues(),binder->getResidues());
+    interfaceResidues = C.getInteractingResPairs();
+    for (auto pair : interfaceResidues) targetBindingResidues.insert(pair.first);
+
+    cout << interfaceResidues.size() << " interface contacts when defined by van der Waals interactions" << endl;
+}
+
+void binderScorer::setBackgroundSurfaceProbabilities() {
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ALA")] = 0.048049;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ARG")] = 0.090171;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ASN")] = 0.062437;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ASP")] = 0.095417;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("CYS")] = 0.002533;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("GLN")] = 0.070898;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("GLU")] = 0.125364;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("GLY")] = 0.029287;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("HIS")] = 0.023232;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ILE")] = 0.016676;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("LEU")] = 0.033629;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("LYS")] = 0.132090;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("MET")] = 0.009195;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("PHE")] = 0.048049;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("PRO")] = 0.012781;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("SER")] = 0.068929;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("THR")] = 0.058319;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("TRP")] = 0.006683;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("TYR")] = 0.016602;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("VAL")] = 0.027414;
+}
+
+/* --- --- --- --- --- residueBackboneBinderScorer --- --- --- --- --- */
+
+mstreal residueBackboneBinderScorer::scoreBinder() {
+    binderScore = 0.0;
+    binderScorePerContact.clear();
+    numMatchesPerContact.clear();
+    numNativeMatchesPerContact.clear();
+    searchTimePerContact.clear();
+
+    if (interfaceResidues.empty()) {
         cout << "No contacts to score." << endl;
-        return 0.0;
+        binderScore = -1000.0;
+        return binderScore;
     }
 
     // score each pair of residues with potential to contact
-    for (auto resPair : interfaceResidues) {
-        int residueFramePairCounts = residueFrameCounts(resPair);
-        mstreal residuePairScore = logCounts(residueFramePairCounts);
-        designabilityScore += residuePairScore;
-        interfaceCounts.push_back(residueFramePairCounts);
-        interfaceScores.push_back(residuePairScore);
+    for (auto contactingResidues : interfaceResidues) {
+        int totalMatches = 0;
+        int nativeAAMatches = 0;
+        mstreal contactScore = 0.0;
+        scoreContact(contactingResidues,totalMatches,nativeAAMatches,contactScore);
+        binderScore+=contactScore;
     }
-    nonDesignableInterfaceResidues = pConts.getNonDesignableContacts();
-    numNonDesignable = nonDesignableInterfaceResidues.size();
-    return designabilityScore + nonDesignableContactPenalty*numNonDesignable;
+    return binderScore;
 }
 
-void binderScorer::writeBinderScoresToFile(bool append) {
+void residueBackboneBinderScorer::scoreContact(pair<Residue*,Residue*> contactingRes, int& totalMatches, int& nativeMatches, mstreal& contactScore) {
+    resPairSearcher.setQuery(contactingRes.first,contactingRes.second);
+    timer.start();
+    totalMatches = resPairSearcher.searchForMatches();
+    timer.stop();
+    mstreal searchTime = timer.getDuration(MstTimer::timeUnits::msec);
+    cout << "Took " << searchTime << " (ms) to find " << totalMatches << " matches." << endl;
+    if (totalMatches > 0) { // the exact threshold should be determined more rigorously
+        res_t targetResType = SeqTools::aaToIdx(contactingRes.first->getName());
+        nativeMatches = resPairSearcher.getNumMatchesWithResidueType(true);
+        mstreal nativeResProbFromMatches = mstreal(nativeMatches+1)/mstreal(totalMatches+aaTypes.size());
+        contactScore = -log2(nativeResProbFromMatches/backgroundSurfaceProbabilities[targetResType]);
+    } else {
+        nativeMatches = 0;
+        contactScore = 10.0;
+    }
+    binderScorePerContact.push_back(contactScore);
+    numMatchesPerContact.push_back(totalMatches);
+    numNativeMatchesPerContact.push_back(nativeMatches);
+    searchTimePerContact.push_back(searchTime);
+}
+
+void residueBackboneBinderScorer::writeBinderScoresToFile(bool append) {
     if (binder_info_out == nullptr) {
         binder_info_out = new fstream;
         string filename = targetName + "_binderScores.tsv";
         MstUtils::openFile(*binder_info_out,filename,fstream::out);
-        *binder_info_out << "targetName\tbinderName\tbinderScore\tresidueFrameScore\tnumPotentialContacts\tnumNonDesignableContacts\tnumBinderRes" << endl;
+        *binder_info_out << "targetName\tbinderName\tbinderScore\tnumPotentialContacts\tnumBinderRes" << endl;
     }
     *binder_info_out << targetName << "\t";
     *binder_info_out << binder->getName() << "\t";
-    *binder_info_out << designabilityScore + nonDesignableContactPenalty*numNonDesignable << "\t";
-    *binder_info_out << designabilityScore << "\t";
+    *binder_info_out << binderScore << "\t";
     *binder_info_out << countDesignableContacts() << "\t";
-    *binder_info_out << numNonDesignable << "\t";
     *binder_info_out << binder->residueSize();
     *binder_info_out << endl;
 }
 
-void binderScorer::writeContactScoresToFile(bool append) {
+void residueBackboneBinderScorer::writeContactScoresToFile(bool append) {
     if (contact_info_out == nullptr) {
         contact_info_out = new fstream;
         string filename = targetName + "_contactScores.tsv";
         MstUtils::openFile(*contact_info_out,filename,fstream::out);
-        *contact_info_out << "targetName\tbinderName\ttargetRes\ttargetResName\tbinderRes\tbinderResName\tresidueFrameCounts\tresidueFrameScore\tdistanceCa\tsearchTime_ms" << endl;
+        *contact_info_out << "targetName\tbinderName\ttargetRes\ttargetResName\tbinderRes\tbinderResName\tbinderScore\tnTotalMatches\tnNativeMatches\tdistanceCa\tsearchTime_ms" << endl;
     }
     for (int i = 0; i < interfaceResidues.size(); i++) {
         Residue* targetR = interfaceResidues[i].first;
@@ -325,258 +371,487 @@ void binderScorer::writeContactScoresToFile(bool append) {
         *contact_info_out << binderR->getStructure()->getName() << "\t";
         *contact_info_out << targetR->getChainID() << targetR->getNum() << "\t" << targetR->getName() << "\t";
         *contact_info_out << binderR->getChainID() << binderR->getNum() << "\t" << binderR->getName()<< "\t";
-        *contact_info_out << interfaceCounts[i] << "\t";
-        *contact_info_out << interfaceScores[i] << "\t";
+        *contact_info_out << binderScorePerContact[i] << "\t";
+        *contact_info_out << numMatchesPerContact[i] << "\t";
+        *contact_info_out << numNativeMatchesPerContact[i] << "\t";
         *contact_info_out << distanceCA << "\t";
-        *contact_info_out << searchTimes[i];
+        *contact_info_out << searchTimePerContact[i];
         *contact_info_out << endl;
     }
 }
 
-void binderScorer::writeContactPropertyToFile(string dirPath) {
-    fstream conts_out;
-    if (dirPath != "") dirPath = dirPath + "/";
-    string filename = dirPath + binder->getName() + "_contactScoresSimple.tsv";
-    cout << "filename: " << filename << endl;
-    MstUtils::openFile(conts_out, filename, fstream::out, "interfaceScorer::writeContactPropertyToFile");
 
-    for (int i = 0; i < interfaceResidues.size(); i++) {
-        Residue* Ri = interfaceResidues[i].first;
-        Residue* Rj = interfaceResidues[i].second;
-        mstreal val = interfaceScores[i];
-        conts_out << Ri->getChainID() << Ri->getNum() << "\t";
-        conts_out << Rj->getChainID() << Rj->getNum() << "\t";
-        conts_out << val;
-        conts_out << endl;
-    }
-}
 
-void binderScorer::writeResidueClashesToFile(bool append) {
-    if (clash_info_out == nullptr) {
-        clash_info_out = new fstream;
-        string filename = targetName + "_residueClashes.tsv";
-        MstUtils::openFile(*clash_info_out,filename,fstream::out);
-        *clash_info_out << "targetName\tbinderName\ttargetRes\ttargetResName\tbinderRes\tbinderResName\tdistance\tnormCbDistance\tsearchTime_ms" << endl;
-    }
-    vector<pair<Residue*,Residue*>> residueClashes = pConts.getNonDesignableContacts();
-    for (int i = 0; i < residueClashes.size(); i++) {
-        Residue* targetR = residueClashes[i].first;
-        Residue* binderR = residueClashes[i].second;
-        mstreal distanceCA = (targetR->findAtom("CA")->getCoor() - binderR->findAtom("CA")->getCoor()).norm();
-        mstreal normCbDist = pConts.getNormalizedCbDistance(targetR,binderR);
-        *clash_info_out << targetName << "\t";
-        *clash_info_out << binderR->getStructure()->getName() << "\t";
-        *clash_info_out << targetR->getChainID() << targetR->getNum() << "\t" << targetR->getName() << "\t";
-        *clash_info_out << binderR->getChainID() << binderR->getNum() << "\t" << binderR->getName()<< "\t";
-        *clash_info_out << distanceCA << "\t" << normCbDist;
-        *clash_info_out << endl;
-    }
-}
+/* --- --- --- --- --- residueFrameBinderScorer --- --- --- --- --- */
+// residueFrameBinderScorer::residueFrameBinderScorer(const binderScorerParams& params, augmentedStructure& _target) : binderScorer(params,_target), augmentedTarget(_target) {
+//     prepareVoxelGrids(params.frameDBPath);
+// }
 
-void binderScorer::writeResiduesClashesToSimpleFile(string dirPath) {
-    fstream conts_out;
-    if (dirPath != "") dirPath = dirPath + "/";
-    string filename = dirPath + MstSys::splitPath(binder->getName(),1) + "_residueClashesSimple.tsv";
-    cout << "filename: " << filename << endl;
-    MstUtils::openFile(conts_out, filename, fstream::out, "interfaceScorer::writeContactPropertyToFile");
-
-    for (int i = 0; i < interfaceResidues.size(); i++) {
-        Residue* Ri = interfaceResidues[i].first;
-        Residue* Rj = interfaceResidues[i].second;
-        conts_out << Ri->getChainID() << Ri->getNum() << "\t";
-        conts_out << Rj->getChainID() << Rj->getNum() << "\t";
-        conts_out << 1.0;
-        conts_out << endl;
-    }
-}
-
-void binderScorer::writePSSM(string dirPath) {
-    fstream pssm_out;
-    if (dirPath != "") dirPath = dirPath + "/";
-    string filename = dirPath + binder->getName() + "_binderPSSM.csv";
-    cout << "filename: " << filename << endl;
-    MstUtils::openFile(pssm_out, filename, fstream::out, "interfaceScorer::writePSSM");
+// residueFrameBinderScorer::residueFrameBinderScorer(const binderScorerParams& params, augmentedStructure& complex, string binderChainIDsString, string targetChainIDsString) : binderScorer(params,complex,binderChainIDsString,targetChainIDsString) {
+//     augmentedBinder = new augmentedStructure(binder->getResidues());
+//     augmentedBinder->setName(targetName);
     
-    // write header
-    set<string> aaNames = SeqToolsExtension::getAANames();
-    vector<string> aaNamesVec(aaNames.begin(),aaNames.end());
-    pssm_out << "position," << MstUtils::join(",",aaNamesVec) << endl;    
+//     prepareVoxelGrids(params.frameDBPath);
 
-    for (Residue* binderR : binder->getResidues()) {
-        // if residue has potential contacts, we can estimate the amino acid probability distribution
-        vector<mstreal> aaDist = getAADistAtPos(binderR);
-        if (aaDist.empty()) continue;
-        pssm_out << binderR->getResidueIndexInChain()+1; // seeds are 1-indexed
-        for (mstreal val : aaDist) {
-            pssm_out << "," << val;
-        }
-        pssm_out << endl;
-    }
-    pssm_out.close();
-}
+//     // define interface by looking at VDW contacts
+//     defineInterfaceUsingVDWContacts();
 
-void binderScorer::prepareVoxelGrids(string frameDBPath) {
-    timer.start();
+//     // in case the user will switch to using potential contacts later, load that data
+//     pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
+//     setBackgroundSurfaceProbabilities();
+// }
 
-    frameDB DB(frameDBPath);
-    vector<mobileFrame*> loaded = DB.loadAllFrames();
-    cout << "Loaded " << loaded.size() << " frames in total." << endl;
+// void residueFrameBinderScorer::setBinder(augmentedStructure* _binder) {
+//     if (complexMode) MstUtils::error("Cannot set another binder in complex mode","residueFrameBinderScorer::setBinder");
+//     binder = _binder;
+//     // for (Residue* R : binder->getResidues()) R->setName("UNK");
+//     pConts.setBinderResidues(binder->getResidues());
 
-    for (string aa : aaTypes) {
-        cout << "Loading frames with amino acid type: " << aa << endl;
-        vector<mobileFrame*> currentFrames;
-        res_t current_aa = SeqTools::aaToIdx(aa);
-        for (mobileFrame* frame : loaded) {
-            if (frame->getResIIndex() == current_aa) {
-                currentFrames.push_back(frame);
-            }
-        }
-        boundingBox bbox(1.0);
-        bbox.update(currentFrames);
-        bbox.printBounds();
-        frameTable* mobileResFrames = new frameTable(bbox, posCut/mstreal(2), 360/int(oriCut/mstreal(2)),verbose);
-        for (mobileFrame* frame : currentFrames) mobileResFrames->insertFrame(frame);
-        frameTables[current_aa] = mobileResFrames;
-    }
+//     // reset all variables
+//     designabilityScore = 0.0;
+//     numNonDesignable = 0;
+// }
 
-    timer.stop();
-    cout << "It took " << timer.getDuration() << " seconds to load all frames into hash tables" << endl;
-}
+// void residueFrameBinderScorer::setTargetBindingSiteResidues(vector<Residue*> sel) {
+//     targetBindingResidues.clear();
+//     for (Residue* R : sel) targetBindingResidues.insert(R);
+//     cout << "Set " << targetBindingResidues.size() << " target residues" << endl;
+//     // setFrameProbabilityTables();
+//     pConts.setTargetResidues(sel);
+// }
 
-void binderScorer::defineInterfaceUsingVDWContacts() {
-    if (!complexMode) MstUtils::error("Can only define interface using van der Waals contacts when scoring a full-atom complex");
-    vdwContacts C(target.getResidues(),binder->getResidues());
-    interfaceResidues = C.getInteractingResPairs();
-    for (auto pair : interfaceResidues) targetResidues.insert(pair.first);
+// void residueFrameBinderScorer::defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold) {
+//     targetBindingResidues.clear();
+//     sasaCalculator calc(target);
+//     bool relative = true;
+//     map<Residue*,mstreal> relSASA = calc.getResidueSASA(relative);
+//     for (auto it : relSASA) {
+//         if (it.second >= relSASAthreshold) targetBindingResidues.insert(it.first);
+//     }
+//     cout << "Set " << targetBindingResidues.size() << " target residues with relSASA threshold " << relSASAthreshold << endl;
+//     // setFrameProbabilityTables();
+//     vector<Residue*> targetResVec(targetBindingResidues.begin(),targetBindingResidues.end());
+//     pConts.setTargetResidues(targetResVec);
+// }
 
-    cout << interfaceResidues.size() << " interface contacts when defined by van der Waals interactions" << endl;
-}
+// int residueFrameBinderScorer::defineInterfaceByPotentialContacts() {
+//     if (targetBindingResidues.empty()) MstUtils::error("Must define target residues before interface","residueFrameBinderScorer::defineInterfaceByPotentialContacts");
+//     pConts.setBinderResidues(getBinderResidues());
+//     interfaceResidues = pConts.getContacts(false);
+//     cout << "Defined " << interfaceResidues.size() << " potential contacts" << endl;
+//     // check that there are no target residues in the contacts that remain undefined
+//     for (auto pair : interfaceResidues) {
+//         Residue* R = pair.first;
+//         if (targetBindingResidues.find(R) == targetBindingResidues.end()) MstUtils::error("Could not find target residue: "+R->getChainID()+MstUtils::toString(R->getNum()),"residueFrameBinderScorer::defineInterfaceByPotentialContacts");
+//     }
+//     interfaceCounts.clear();
+//     interfaceDesignabilityScores.clear();
+//     interfaceSequenceCompatibilityScores.clear();
+//     interfaceTotalNumberOfMatches.clear();
+//     searchTimes.clear();
+//     return interfaceResidues.size();
+// }
 
-// void binderScorer::setFrameProbabilityTables() {
-//     // for each target residue with the same amino acid identity, compute the occupied volume
-//     for (string aa : aaTypes) {
-//         cout << "Set target residues with identity: " << aa << endl;
-//         res_t current_aa = SeqTools::aaToIdx(aa);
-//         frameProbability* fTable = frameTables.at(current_aa);
-//         for (Residue* targetRes : targetResidues) {
-//             if (SeqTools::aaToIdx(targetRes->getName()) == current_aa) {
-//                 if (fTable->isTargetResidueDefined(targetRes->getResidueIndex())) continue;
-//                 fTable->setTargetResidue(targetRes->getResidueIndex(),targetBackbone,renormalizeProbabilities);
-//             }
-//         }
+// mstreal residueFrameBinderScorer::scoreInterfaceDesignability() {
+//     if (!interfaceDesignabilityScores.empty()) return designabilityScore;
+//     else if (interfaceResidues.empty()) {
+//         cout << "No contacts to score." << endl;
+//         return 0.0;
+//     }
+
+//     // score each pair of residues with potential to contact
+//     for (auto resPair : interfaceResidues) {
+//         int residueFramePairCounts = residueFrameCounts(resPair);
+//         mstreal residuePairScore = logCounts(residueFramePairCounts);
+//         designabilityScore += residuePairScore;
+//         interfaceCounts.push_back(residueFramePairCounts);
+//         interfaceDesignabilityScores.push_back(residuePairScore);
+//     }
+//     nonDesignableInterfaceResidues = pConts.getNonDesignableContacts();
+//     numNonDesignable = nonDesignableInterfaceResidues.size();
+//     return designabilityScore + nonDesignableContactPenalty*numNonDesignable;
+// }
+
+// mstreal residueFrameBinderScorer::scoreInterfaceSequenceCompatibility() {
+//     if (!interfaceSequenceCompatibilityScores.empty()) return sequenceCompatibilityScore;
+//     else if (interfaceResidues.empty()) {
+//         cout << "No contacts to score." << endl;
+//         return 0.0;
+//     }
+
+//     // score each pair of residues with potential to contact
+//     for (auto resPair : interfaceResidues) {
+//         int totalMatches = 0;
+//         int nativeAAMatches = 0;
+//         mstreal sequenceCompatibilityContactScore = 0.0;
+//         residueFrameSequenceCompatibility(resPair,totalMatches,nativeAAMatches,sequenceCompatibilityContactScore);
+//         sequenceCompatibilityScore+=sequenceCompatibilityContactScore;
+//         interfaceSequenceCompatibilityScores.push_back(sequenceCompatibilityContactScore);
+//         interfaceTotalNumberOfMatches.push_back(totalMatches - 20);
+//     }
+//     nonDesignableInterfaceResidues = pConts.getNonDesignableContacts();
+//     numNonDesignable = nonDesignableInterfaceResidues.size();
+//     return sequenceCompatibilityScore; // + nonDesignableContactPenalty*numNonDesignable;
+// }
+
+// void residueFrameBinderScorer::writeBinderDesignabilityScoresToFile(bool append) {
+//     if (binder_info_out == nullptr) {
+//         binder_info_out = new fstream;
+//         string filename = targetName + "_binderScores.tsv";
+//         MstUtils::openFile(*binder_info_out,filename,fstream::out);
+//         *binder_info_out << "targetName\tbinderName\tbinderScore\tresidueFrameScore\tnumPotentialContacts\tnumNonDesignableContacts\tnumBinderRes" << endl;
+//     }
+//     *binder_info_out << targetName << "\t";
+//     *binder_info_out << binder->getName() << "\t";
+//     *binder_info_out << designabilityScore + nonDesignableContactPenalty*numNonDesignable << "\t";
+//     *binder_info_out << designabilityScore << "\t";
+//     *binder_info_out << countDesignableContacts() << "\t";
+//     *binder_info_out << numNonDesignable << "\t";
+//     *binder_info_out << binder->residueSize();
+//     *binder_info_out << endl;
+// }
+
+// void residueFrameBinderScorer::writeContactDesignabilityScoresToFile(bool append) {
+//     if (contact_info_out == nullptr) {
+//         contact_info_out = new fstream;
+//         string filename = targetName + "_contactScores.tsv";
+//         MstUtils::openFile(*contact_info_out,filename,fstream::out);
+//         *contact_info_out << "targetName\tbinderName\ttargetRes\ttargetResName\tbinderRes\tbinderResName\tresidueFrameCounts\tresidueFrameScore\tdistanceCa\tsearchTime_ms" << endl;
+//     }
+//     for (int i = 0; i < interfaceResidues.size(); i++) {
+//         Residue* targetR = interfaceResidues[i].first;
+//         Residue* binderR = interfaceResidues[i].second;
+//         mstreal distanceCA = (targetR->findAtom("CA")->getCoor() - binderR->findAtom("CA")->getCoor()).norm();
+//         *contact_info_out << targetName << "\t";
+//         *contact_info_out << binderR->getStructure()->getName() << "\t";
+//         *contact_info_out << targetR->getChainID() << targetR->getNum() << "\t" << targetR->getName() << "\t";
+//         *contact_info_out << binderR->getChainID() << binderR->getNum() << "\t" << binderR->getName()<< "\t";
+//         *contact_info_out << interfaceCounts[i] << "\t";
+//         *contact_info_out << interfaceDesignabilityScores[i] << "\t";
+//         *contact_info_out << distanceCA << "\t";
+//         *contact_info_out << searchTimes[i];
+//         *contact_info_out << endl;
 //     }
 // }
 
-int binderScorer::residueFrameCounts(pair<Residue*,Residue*> resPair) {
-    string resAAName = resPair.first->getName();
-    if (aaTypes.find(resAAName) == aaTypes.end()) {
-        cout << "Warning: amino acid type: " << resAAName << " is not a canonical amino acid type. Skipping contact" << endl;
-        return 0.0;
-    }
-    res_t aaType = SeqTools::aaToIdx(resAAName);
-    Residue* targetRes = resPair.first;
-    Residue* binderRes = resPair.second;
-    if (verbose) cout << "Searching contact between " << targetRes->getChainID() << targetRes->getNum() << " and " << binderRes->getChainID() << binderRes->getNum() << endl;
+// void residueFrameBinderScorer::writeBinderSequenceCompatibilityScoresToFile(bool append) {
+//     if (binder_info_out == nullptr) {
+//         binder_info_out = new fstream;
+//         string filename = targetName + "_binderScores.tsv";
+//         MstUtils::openFile(*binder_info_out,filename,fstream::out);
+//         *binder_info_out << "targetName\tbinderName\tsequenceCompatiblityScore\tnumPotentialContacts\tnumBinderRes" << endl;
+//     }
+//     *binder_info_out << targetName << "\t";
+//     *binder_info_out << binder->getName() << "\t";
+//     *binder_info_out << sequenceCompatibilityScore << "\t";
+//     *binder_info_out << countDesignableContacts() << "\t";
+//     *binder_info_out << binder->residueSize();
+//     *binder_info_out << endl;
+// }
+
+// void residueFrameBinderScorer::writeContactSequenceCompatibilityScoresToFile(bool append) {
+//     if (contact_info_out == nullptr) {
+//         contact_info_out = new fstream;
+//         string filename = targetName + "_contactScores.tsv";
+//         MstUtils::openFile(*contact_info_out,filename,fstream::out);
+//         *contact_info_out << "targetName\tbinderName\ttargetRes\ttargetResName\tbinderRes\tbinderResName\tsequenceCompatibilityScore\tnTotalMatches\tdistanceCa\tsearchTime_ms" << endl;
+//     }
+//     for (int i = 0; i < interfaceResidues.size(); i++) {
+//         Residue* targetR = interfaceResidues[i].first;
+//         Residue* binderR = interfaceResidues[i].second;
+//         mstreal distanceCA = (targetR->findAtom("CA")->getCoor() - binderR->findAtom("CA")->getCoor()).norm();
+//         *contact_info_out << targetName << "\t";
+//         *contact_info_out << binderR->getStructure()->getName() << "\t";
+//         *contact_info_out << targetR->getChainID() << targetR->getNum() << "\t" << targetR->getName() << "\t";
+//         *contact_info_out << binderR->getChainID() << binderR->getNum() << "\t" << binderR->getName()<< "\t";
+//         *contact_info_out << interfaceSequenceCompatibilityScores[i] << "\t";
+//         *contact_info_out << interfaceTotalNumberOfMatches[i] << "\t";
+//         *contact_info_out << distanceCA << "\t";
+//         *contact_info_out << searchTimes[i];
+//         *contact_info_out << endl;
+//     }
+// }
+
+// void residueFrameBinderScorer::writeContactPropertyToFile(string dirPath, bool designabilityScore) {
+//     if (designabilityScore && interfaceDesignabilityScores.empty()) MstUtils::error("Cannot write designability scores before computing","residueFrameBinderScorer::writeContactPropertyToFile");
+//     if (!designabilityScore && interfaceSequenceCompatibilityScores.empty()) MstUtils::error("Cannot write sequence compatibility scores before computing","residueFrameBinderScorer::writeContactPropertyToFile");
+//     fstream conts_out;
+//     if (dirPath != "") dirPath = dirPath + "/";
+//     string filename = dirPath + binder->getName() + "_contactScoresSimple.tsv";
+//     cout << "filename: " << filename << endl;
+//     MstUtils::openFile(conts_out, filename, fstream::out, "residueFrameBinderScorer::writeContactPropertyToFile");
+
+//     for (int i = 0; i < interfaceResidues.size(); i++) {
+//         Residue* Ri = interfaceResidues[i].first;
+//         Residue* Rj = interfaceResidues[i].second;
+//         mstreal val;
+//         if (designabilityScore) val = interfaceDesignabilityScores[i];
+//         else val = interfaceSequenceCompatibilityScores[i];
+//         conts_out << Ri->getChainID() << Ri->getNum() << "\t";
+//         conts_out << Rj->getChainID() << Rj->getNum() << "\t";
+//         conts_out << val;
+//         conts_out << endl;
+//     }
+// }
+
+// void residueFrameBinderScorer::writeResidueClashesToFile(bool append) {
+//     if (clash_info_out == nullptr) {
+//         clash_info_out = new fstream;
+//         string filename = targetName + "_residueClashes.tsv";
+//         MstUtils::openFile(*clash_info_out,filename,fstream::out);
+//         *clash_info_out << "targetName\tbinderName\ttargetRes\ttargetResName\tbinderRes\tbinderResName\tdistance\tnormCbDistance\tsearchTime_ms" << endl;
+//     }
+//     vector<pair<Residue*,Residue*>> residueClashes = pConts.getNonDesignableContacts();
+//     for (int i = 0; i < residueClashes.size(); i++) {
+//         Residue* targetR = residueClashes[i].first;
+//         Residue* binderR = residueClashes[i].second;
+//         mstreal distanceCA = (targetR->findAtom("CA")->getCoor() - binderR->findAtom("CA")->getCoor()).norm();
+//         mstreal normCbDist = pConts.getNormalizedCbDistance(targetR,binderR);
+//         *clash_info_out << targetName << "\t";
+//         *clash_info_out << binderR->getStructure()->getName() << "\t";
+//         *clash_info_out << targetR->getChainID() << targetR->getNum() << "\t" << targetR->getName() << "\t";
+//         *clash_info_out << binderR->getChainID() << binderR->getNum() << "\t" << binderR->getName()<< "\t";
+//         *clash_info_out << distanceCA << "\t" << normCbDist;
+//         *clash_info_out << endl;
+//     }
+// }
+
+// void residueFrameBinderScorer::writeResiduesClashesToSimpleFile(string dirPath) {
+//     fstream conts_out;
+//     if (dirPath != "") dirPath = dirPath + "/";
+//     string filename = dirPath + MstSys::splitPath(binder->getName(),1) + "_residueClashesSimple.tsv";
+//     cout << "filename: " << filename << endl;
+//     MstUtils::openFile(conts_out, filename, fstream::out, "residueFrameBinderScorer::writeContactPropertyToFile");
+
+//     for (int i = 0; i < interfaceResidues.size(); i++) {
+//         Residue* Ri = interfaceResidues[i].first;
+//         Residue* Rj = interfaceResidues[i].second;
+//         conts_out << Ri->getChainID() << Ri->getNum() << "\t";
+//         conts_out << Rj->getChainID() << Rj->getNum() << "\t";
+//         conts_out << 1.0;
+//         conts_out << endl;
+//     }
+// }
+
+// void residueFrameBinderScorer::writePSSM(string dirPath) {
+//     fstream pssm_out;
+//     if (dirPath != "") dirPath = dirPath + "/";
+//     string filename = dirPath + binder->getName() + "_binderPSSM.csv";
+//     cout << "filename: " << filename << endl;
+//     MstUtils::openFile(pssm_out, filename, fstream::out, "interfaceScorer::writePSSM");
     
-    timer.start();
-    residueFrame* query = defineQuery(targetRes,binderRes);
-    // frameTables[aaType]->setSearchParams(posCut,oriCut);
-    int counts = frameTables[aaType]->countSimilarFrames(query,posCut,oriCut);
-    timer.stop();
+//     // write header
+//     set<string> aaNames = SeqToolsExtension::getAANames();
+//     vector<string> aaNamesVec(aaNames.begin(),aaNames.end());
+//     pssm_out << "position," << MstUtils::join(",",aaNamesVec) << endl;    
 
-    mstreal duration = timer.getDuration(MstTimer::timeUnits::msec);
-    if (verbose) cout << "Found " << counts << " matches." << endl;
-    searchTimes.push_back(duration);
+//     for (Residue* binderR : binder->getResidues()) {
+//         // if residue has potential contacts, we can estimate the amino acid probability distribution
+//         vector<mstreal> aaDist = getAADistAtPos(binderR);
+//         if (aaDist.empty()) continue;
+//         pssm_out << binderR->getResidueIndexInChain()+1; // seeds are 1-indexed
+//         for (mstreal val : aaDist) {
+//             pssm_out << "," << val;
+//         }
+//         pssm_out << endl;
+//     }
+//     pssm_out.close();
+// }
 
-    delete query;
-    return counts;
-}
+// void residueFrameBinderScorer::prepareVoxelGrids(string frameDBPath) {
+//     timer.start();
 
-mstreal binderScorer::logProb(mstreal numerator, mstreal denominator, mstreal pseudocount) {
-    return log(numerator+pseudocount) - log(denominator+pseudocount);
-}
+//     frameDB DB(frameDBPath);
+//     vector<mobileFrame*> loaded = DB.loadAllFrames();
+//     cout << "Loaded " << loaded.size() << " frames in total." << endl;
 
-vector<mstreal> binderScorer::getAADistAtPos(Residue* binderRes) {
-    vector<mstreal> aaDist;
+//     for (string aa : aaTypes) {
+//         cout << "Loading frames with amino acid type: " << aa << endl;
+//         vector<mobileFrame*> currentFrames;
+//         res_t current_aa = SeqTools::aaToIdx(aa);
+//         for (mobileFrame* frame : loaded) {
+//             if (frame->getResIIndex() == current_aa) {
+//                 currentFrames.push_back(frame);
+//             }
+//         }
+//         boundingBox bbox(1.0);
+//         bbox.update(currentFrames);
+//         bbox.printBounds();
+//         frameTable* mobileResFrames = new frameTable(bbox, posCut/mstreal(2), 360/int(oriCut/mstreal(2)),verbose);
+//         for (mobileFrame* frame : currentFrames) mobileResFrames->insertFrame(frame);
+//         frameTables[current_aa] = mobileResFrames;
+//     }
 
-    // collect the interacting pairs
-    vector<pair<Residue*,Residue*>> contactsWithBinderR;
-    for (auto pair : interfaceResidues) {
-        if (pair.second == binderRes) {
-            contactsWithBinderR.push_back(pair);
-        }
-    }
-    if (contactsWithBinderR.empty()) return aaDist;
+//     timer.stop();
+//     cout << "It took " << timer.getDuration() << " seconds to load all frames into hash tables" << endl;
+// }
 
-    // estimate the 'diagonal' of the joint distribution 
-    // e.g. what is the probability of some amino acid at this binder residue, given
-    // each of the target residues (assuming independence)
-    vector<vector<mstreal>> allContactAADist;
-    for (pair<Residue*,Residue*> resPair : contactsWithBinderR) {
-        string resAAName = resPair.first->getName();
-        if (aaTypes.find(resAAName) == aaTypes.end()) {
-            cout << "Warning: amino acid type: " << resAAName << " is not a canonical amino acid type. Skipping contact" << endl;
-            continue;
-        }
-        res_t aaType = SeqTools::aaToIdx(resAAName);
-        Residue* targetRes = resPair.first;
+// // void binderScorer::setFrameProbabilityTables() {
+// //     // for each target residue with the same amino acid identity, compute the occupied volume
+// //     for (string aa : aaTypes) {
+// //         cout << "Set target residues with identity: " << aa << endl;
+// //         res_t current_aa = SeqTools::aaToIdx(aa);
+// //         frameProbability* fTable = frameTables.at(current_aa);
+// //         for (Residue* targetRes : targetResidues) {
+// //             if (SeqTools::aaToIdx(targetRes->getName()) == current_aa) {
+// //                 if (fTable->isTargetResidueDefined(targetRes->getResidueIndex())) continue;
+// //                 fTable->setTargetResidue(targetRes->getResidueIndex(),targetBackbone,renormalizeProbabilities);
+// //             }
+// //         }
+// //     }
+// // }
 
-        timer.start();
-        residueFrame* query = defineQuery(resPair.first,resPair.second);
-        allContactAADist.push_back(frameTables[aaType]->findBinderResAADist(query,posCut,oriCut));
-        timer.stop();
+// int residueFrameBinderScorer::residueFrameCounts(pair<Residue*,Residue*> resPair) {
+//     string resAAName = resPair.first->getName();
+//     if (aaTypes.find(resAAName) == aaTypes.end()) {
+//         cout << "Warning: amino acid type: " << resAAName << " is not a canonical amino acid type. Skipping contact" << endl;
+//         return 0.0;
+//     }
+//     res_t aaType = SeqTools::aaToIdx(resAAName);
+//     Residue* targetRes = resPair.first;
+//     Residue* binderRes = resPair.second;
+//     if (verbose) cout << "Searching contact between " << targetRes->getChainID() << targetRes->getNum() << " and " << binderRes->getChainID() << binderRes->getNum() << endl;
+    
+//     timer.start();
+//     residueFrame* query = defineQuery(targetRes,binderRes);
+//     // frameTables[aaType]->setSearchParams(posCut,oriCut);
+//     int counts = frameTables[aaType]->countSimilarFrames(query,posCut,oriCut);
+//     timer.stop();
 
-        mstreal duration = timer.getDuration(MstTimer::timeUnits::msec);
-        cout << "Found distribution in " << duration << " ms" << endl;
-        delete query;
-    }
-    return getJointProbability(allContactAADist);
-}
+//     mstreal duration = timer.getDuration(MstTimer::timeUnits::msec);
+//     if (verbose) cout << "Found " << counts << " matches." << endl;
+//     searchTimes.push_back(duration);
 
-vector<mstreal> binderScorer::getJointProbability(vector<vector<mstreal>> aaDists) {
-    for (auto aaDist : aaDists) if (aaDist.size() != SeqToolsExtension::numAA()) MstUtils::error("amino acid distribution has wrong number of states","binderScorer::getJointProbability");
-    vector<mstreal> jointDist;
+//     delete query;
+//     return counts;
+// }
 
-    // find joint probability
-    mstreal normConst;
-    for (int i = 0; i < SeqToolsExtension::numAA(); i++) {
-        mstreal prob = 1.0;
-        for (int j = 0; j < aaDists.size(); j++) {
-            prob *= aaDists[j][i];
-        }
-        jointDist.push_back(prob);
-        normConst += prob;
-    }
+// void residueFrameBinderScorer::residueFrameSequenceCompatibility(pair<Residue*,Residue*> resPair, int &totalMatches, int &nativeAAMatches, mstreal &sequenceCompatibilityScore) {
+//     string resAAName = resPair.first->getName();
+//     if (aaTypes.find(resAAName) == aaTypes.end()) {
+//         cout << "Warning: amino acid type: " << resAAName << " is not a canonical amino acid type. Skipping contact" << endl;
+//         totalMatches = 0;
+//         nativeAAMatches = 0;
+//         sequenceCompatibilityScore = 0.0;
+//     }
+//     res_t aaType = SeqTools::aaToIdx(resAAName);
+//     Residue* targetRes = resPair.first;
+//     Residue* binderRes = resPair.second;
+//     if (verbose) cout << "Searching contact between " << targetRes->getChainID() << targetRes->getNum() << " and " << binderRes->getChainID() << binderRes->getNum() << endl;
+    
+//     timer.start();
+//     residueFrame* query = defineQuery(targetRes,binderRes);
+//     for (auto const& table : frameTables) {
+//         int counts = frameTables[table.first]->countSimilarFrames(query,posCut,oriCut);
+//         totalMatches += counts;
+//         totalMatches+=1; //psuedocount
+//         if (table.first == aaType) {
+//             nativeAAMatches += counts;
+//             nativeAAMatches+=1; //pseudocount
+//         }
+//     }
+//     timer.stop();
 
-    // renormalize
-    for (int i = 0; i < jointDist.size(); i++) jointDist[i] = jointDist[i]/normConst;
-    return jointDist;
-}
+//     // Calculate score
+//     cout << "totalMatches " << totalMatches << endl;
+//     cout << "nativeAAMatches " << nativeAAMatches << endl;
+//     cout << "bgProb " << backgroundSurfaceProbabilities[aaType] << endl;
+//     sequenceCompatibilityScore = -log2((mstreal(nativeAAMatches)/mstreal(totalMatches))/backgroundSurfaceProbabilities[aaType]);
 
-/* --- --- --- --- --- binderBackboneScorer --- --- --- --- --- */
+//     mstreal duration = timer.getDuration(MstTimer::timeUnits::msec);
+//     if (verbose) cout << "Found " << totalMatches << " total matches and " << nativeAAMatches << " with the native amino acid" << endl;
+//     searchTimes.push_back(duration);
 
-mstreal binderBackboneScorer::scoreBackbone(Structure* S) {
-    if (!info_out.is_open()) openFile();
-    vector<Residue*> Sresidues = S->getResidues();
-    int segmentLength = segmentSearcher.getSegLen();
-    mstreal total_score = 0;
-    if (S->residueSize() < segmentLength) MstUtils::error("The length of segments in the library is longer than the structure that is to be scored","binderBackboneScorer::scoreBackbone");
-    for (int i = 0; i < S->residueSize() - segmentLength + 1; i++) {
-        Structure segment(vector<Residue*>(Sresidues.begin()+i,Sresidues.begin()+i+segmentLength));
-        mstreal RMSD = segmentSearcher.findLowestRMSDSegment(&segment);
-        int nMatches = segmentSearcher.getNumMatchesInDB();
-        mstreal score = -log(nMatches+1);
-        cout << "Found segment matching position " << i << " with RMSD: " << RMSD;
-        cout << " and nMatches: " << nMatches << endl;
-        info_out << name << "," << i << ",";
-        info_out << segmentLength << "," << nMatches << ",";
-        info_out << score << endl;
-    }
-    return total_score;
-};
+//     delete query;
+// }
 
-void binderBackboneScorer::openFile() {
-    string fileName = name + "_backboneSegmentScore.csv";
-    MstUtils::openFile(info_out,fileName,fstream::out);
-    info_out << "name,nTermResIdx,segLen,nMatches,score" << endl;
-};
+// mstreal residueFrameBinderScorer::logProb(mstreal numerator, mstreal denominator, mstreal pseudocount) {
+//     return log(numerator+pseudocount) - log(denominator+pseudocount);
+// }
+
+// vector<mstreal> residueFrameBinderScorer::getAADistAtPos(Residue* binderRes) {
+//     vector<mstreal> aaDist;
+
+//     // collect the interacting pairs
+//     vector<pair<Residue*,Residue*>> contactsWithBinderR;
+//     for (auto pair : interfaceResidues) {
+//         if (pair.second == binderRes) {
+//             contactsWithBinderR.push_back(pair);
+//         }
+//     }
+//     if (contactsWithBinderR.empty()) return aaDist;
+
+//     // estimate the 'diagonal' of the joint distribution 
+//     // e.g. what is the probability of some amino acid at this binder residue, given
+//     // each of the target residues (assuming independence)
+//     vector<vector<mstreal>> allContactAADist;
+//     for (pair<Residue*,Residue*> resPair : contactsWithBinderR) {
+//         string resAAName = resPair.first->getName();
+//         if (aaTypes.find(resAAName) == aaTypes.end()) {
+//             cout << "Warning: amino acid type: " << resAAName << " is not a canonical amino acid type. Skipping contact" << endl;
+//             continue;
+//         }
+//         res_t aaType = SeqTools::aaToIdx(resAAName);
+//         Residue* targetRes = resPair.first;
+
+//         timer.start();
+//         residueFrame* query = defineQuery(resPair.first,resPair.second);
+//         allContactAADist.push_back(frameTables[aaType]->findBinderResAADist(query,posCut,oriCut));
+//         timer.stop();
+
+//         mstreal duration = timer.getDuration(MstTimer::timeUnits::msec);
+//         cout << "Found distribution in " << duration << " ms" << endl;
+//         delete query;
+//     }
+//     return getJointProbability(allContactAADist);
+// }
+
+// vector<mstreal> residueFrameBinderScorer::getJointProbability(vector<vector<mstreal>> aaDists) {
+//     for (auto aaDist : aaDists) if (aaDist.size() != SeqToolsExtension::numAA()) MstUtils::error("amino acid distribution has wrong number of states","binderScorer::getJointProbability");
+//     vector<mstreal> jointDist;
+
+//     // find joint probability
+//     mstreal normConst;
+//     for (int i = 0; i < SeqToolsExtension::numAA(); i++) {
+//         mstreal prob = 1.0;
+//         for (int j = 0; j < aaDists.size(); j++) {
+//             prob *= aaDists[j][i];
+//         }
+//         jointDist.push_back(prob);
+//         normConst += prob;
+//     }
+
+//     // renormalize
+//     for (int i = 0; i < jointDist.size(); i++) jointDist[i] = jointDist[i]/normConst;
+//     return jointDist;
+// }
+
+// /* --- --- --- --- --- binderBackboneScorer --- --- --- --- --- */
+
+// mstreal binderBackboneScorer::scoreBackbone(Structure* S) {
+//     if (!info_out.is_open()) openFile();
+//     vector<Residue*> Sresidues = S->getResidues();
+//     int segmentLength = segmentSearcher.getSegLen();
+//     mstreal total_score = 0;
+//     if (S->residueSize() < segmentLength) MstUtils::error("The length of segments in the library is longer than the structure that is to be scored","binderBackboneScorer::scoreBackbone");
+//     for (int i = 0; i < S->residueSize() - segmentLength + 1; i++) {
+//         Structure segment(vector<Residue*>(Sresidues.begin()+i,Sresidues.begin()+i+segmentLength));
+//         mstreal RMSD = segmentSearcher.findLowestRMSDSegment(&segment);
+//         int nMatches = segmentSearcher.getNumMatchesInDB();
+//         mstreal score = -log(nMatches+1);
+//         cout << "Found segment matching position " << i << " with RMSD: " << RMSD;
+//         cout << " and nMatches: " << nMatches << endl;
+//         info_out << name << "," << i << ",";
+//         info_out << segmentLength << "," << nMatches << ",";
+//         info_out << score << endl;
+//     }
+//     return total_score;
+// };
+
+// void binderBackboneScorer::openFile() {
+//     string fileName = name + "_backboneSegmentScore.csv";
+//     MstUtils::openFile(info_out,fileName,fstream::out);
+//     info_out << "name,nTermResIdx,segLen,nMatches,score" << endl;
+// };
+
+// /* --- --- --- --- --- binderBackboneScorer --- --- --- --- --- */

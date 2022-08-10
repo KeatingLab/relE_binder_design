@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 
     if (!op.isGiven("batch"))
     {
-        proteinFrameDB frameDB;
+        augmentedStructureDB frameDB;
         cout << "Reading structures..." << endl;
         if (op.isGiven("pL"))
         {

@@ -41,32 +41,32 @@ int main(int argc, char *argv[]) {
     int extend_stride = op.getInt("extendSegmentLength",4);
     int extend_length = op.getInt("extendLength",12);
 
-    extensionDirection extDir;
-    if ((terminus == "N")) {
-        extDir = extensionDirection::NTERM;
-    } else if ((terminus == "C")) {
-        extDir = extensionDirection::CTERM;
-    } else {
-        MstUtils::error("Must specify either 'N' or 'C' for --terminus");
-    }
-    if ((mode != "random")&(mode != "greedy")&(mode != "mc")) MstUtils::error("Must specify either 'random', 'greedy', or 'mc' for --mode");
+    // extensionDirection extDir;
+    // if ((terminus == "N")) {
+    //     extDir = extensionDirection::NTERM;
+    // } else if ((terminus == "C")) {
+    //     extDir = extensionDirection::CTERM;
+    // } else {
+    //     MstUtils::error("Must specify either 'N' or 'C' for --terminus");
+    // }
+    // if ((mode != "random")&(mode != "greedy")&(mode != "mc")) MstUtils::error("Must specify either 'random', 'greedy', or 'mc' for --mode");
 
-    binderChainExtensionFASST chainExt(extDir,anchor,fasstDBPath);
+    // binderChainExtensionFASST chainExt(extDir,anchor,fasstDBPath);
 
-    binderScorerParams params;
-    params.frameDBPath = frameDBPath;
-    params.potentialContactsJSONPath = potcontsJSONPath;
-    params.posCut = 1.0;
-    params.oriCut = 10;
-    params.renormalizeProbabilities = false;
+    // binderScorerParams params;
+    // params.frameDBPath = frameDBPath;
+    // params.potentialContactsJSONPath = potcontsJSONPath;
+    // params.posCut = 1.0;
+    // params.oriCut = 10;
+    // params.renormalizeProbabilities = false;
 
-    chainExt.setFixedStructuralContext(target,params);
-    chainExt.setOverlapSegmentLength(overlap_length);
-    chainExt.setExtensionSegmentLength(extend_stride);
-    if (mode == "random") {
-        chainExt.extendChainRandom(extend_length);
-    } else if (mode == "greedy") {
-        chainExt.extendChainGreedy(extend_length,numExtensions);
-    }
+    // chainExt.setFixedStructuralContext(target,params);
+    // chainExt.setOverlapSegmentLength(overlap_length);
+    // chainExt.setExtensionSegmentLength(extend_stride);
+    // if (mode == "random") {
+    //     chainExt.extendChainRandom(extend_length);
+    // } else if (mode == "greedy") {
+    //     chainExt.extendChainGreedy(extend_length,numExtensions);
+    // }
     return 0;
 }

@@ -1,6 +1,7 @@
 #ifndef _ALIGNFRAMES_H
 #define _ALIGNFRAMES_H
 
+#include "mstrotlib.h"
 #include "mstsequence.h"
 #include "mstsystem.h"
 #include "msttypes.h"
@@ -9,16 +10,18 @@
 #include "residueframe.h"
 
 class frameDB;
+class resPair;
+class resPairDB;
 
-class proteinFrameDB {
+class augmentedStructureDB {
     public:
-        proteinFrameDB() {};
-        proteinFrameDB(string dbPath) {
+        augmentedStructureDB() {};
+        augmentedStructureDB(string dbPath) {
             dbName = MstSys::splitPath(dbPath,1);
             readDBFile(dbPath);
         }
 
-        ~proteinFrameDB() {
+        ~augmentedStructureDB() {
             for (augmentedStructure *aS : targets) delete aS;
         }
 
@@ -51,8 +54,7 @@ class proteinFrameDB {
         map<int, map<int, set<int>>> vdwContactsBB;
 };
 
-class mobileFrame : public residueFrame
-{
+class mobileFrame : public residueFrame {
 public:
     mobileFrame() {};
     mobileFrame(Residue* R, int _target, int _res_i, int _res_j, res_t _res_i_aa) : residueFrame(R), target(_target), res_i(_res_i), res_j(_res_j), res_i_aa(_res_i_aa)
@@ -84,20 +86,24 @@ private:
     res_t res_i_aa = SeqTools::unknownIdx();
     res_t res_j_aa = SeqTools::unknownIdx();
 
-    friend class proteinFrameDB;
+    friend class augmentedStructureDB;
 };
 
 class alignInteractingFrames
 {
 public:
-    alignInteractingFrames() {};
+    alignInteractingFrames(bool _verbose = false) : verbose(_verbose) {};
     
     /**
      * @brief Construct a new align Frames object by reading augmented structures from DB
      * 
      * @param dbPath path to the augmented structures DB
      */
-    alignInteractingFrames(string dbPath) : db(dbPath), refFrame(Frame()) {}
+    alignInteractingFrames(string dbPath, bool _verbose = false) : db(dbPath), refFrame(Frame()), verbose(_verbose) {}
+    
+    ~alignInteractingFrames() {
+        for (mobileFrame* frame : allInteractingFrames) delete frame;
+    }
 
     void setAA(string resName);
     void setRefFrame(const residueFrame &_rFrame) { refFrame = _rFrame; }
@@ -111,12 +117,13 @@ public:
     Structure *getAlignedInteractingRes(mobileFrame* frame);
     void writeAlignedInteractingResToPDB(string pdbPath, mstreal subsampleRate = 0.01);
     void writeMobileFramesToBin(frameDB* frameBin);
+    void writeResiduePairsToBin(resPairDB* rPBin);
     void writeInteractionData(string pathPrefix);
 
     // mobileFrame* getInteractingResidueFrame(int i);
     // void getAllInteractingResidueFrames();
 
-    proteinFrameDB& getDB() {return db;}
+    augmentedStructureDB& getDB() {return db;}
 
     bool isQueryHomologousToMatchInDB(Residue* query, Residue* reference, mobileFrame* mFrame);
 
@@ -134,9 +141,10 @@ protected:
     pair<int,int> getSequenceIdentity(Residue* R1, Residue* R2);
 
 private:
-    proteinFrameDB db;
+    augmentedStructureDB db;
     int windowSize = 30;
     mstreal homologyThreshold = 0.6;
+    bool verbose;
 
     map<string, string> aaConversions;
 
@@ -145,6 +153,8 @@ private:
     Frame refFrame;
 
     vector<mobileFrame*> allInteractingFrames;
+    vector<resPair> allInteractingRes;
+    
 
     Transform tf;
 
@@ -187,6 +197,124 @@ class frameDB {
         int version = 1;
         bool readMode = true;
         bool frameAdded = false;
+
+        fstream fs;
+};
+
+class resPair {
+    public:
+        resPair() {};
+        resPair(Residue* Ri, Residue* Rj, int _target = -1);
+        ~resPair() {
+            if (ownsAtoms) for (Atom* A: resPairAtoms) delete A;
+        }
+        resPair(const resPair &rP) {
+            target = rP.target;
+            res_i = rP.res_i;
+            res_j = rP.res_j;
+            res_i_aa = rP.res_i_aa;
+            res_j_aa = rP.res_j_aa;
+            bbAtomDistances = rP.bbAtomDistances;
+            ownsAtoms = rP.ownsAtoms;
+            if (ownsAtoms) {
+                for (Atom* A: rP.resPairAtoms) resPairAtoms.push_back(new Atom(*A));
+            } else {
+                resPairAtoms = rP.resPairAtoms;
+            }
+        }
+
+        resPair& operator=(const resPair& rP) {
+            if (this == &rP) return *this;
+            target = rP.target;
+            res_i = rP.res_i;
+            res_j = rP.res_j;
+            res_i_aa = rP.res_i_aa;
+            res_j_aa = rP.res_j_aa;
+            bbAtomDistances = rP.bbAtomDistances;
+            ownsAtoms = rP.ownsAtoms;
+            if (ownsAtoms) {
+                for (Atom* A: rP.resPairAtoms) resPairAtoms.push_back(new Atom(*A));
+            } else {
+                resPairAtoms = rP.resPairAtoms;
+            }
+            return *this;
+        }
+
+        void writeData(ostream& ofs);
+        void readData(istream& ifs);
+
+        int getTarget() {return target;}
+        int getResI() {return res_i;}
+        int getResJ() {return res_j;}
+        res_t getResIAAIndex() {return res_i_aa;}
+        res_t getResJAAIndex() {return res_j_aa;}
+        CartesianPoint getDistances() {return bbAtomDistances;}
+        vector<Atom*> getAtoms() {return resPairAtoms;} //Careful! The atoms are stripped of all info other than coordinates
+
+        string getName() {
+            return MstUtils::toString(target) + "_" + MstUtils::toString(res_i) + "_" + SeqTools::idxToTriple(res_i_aa) + "_" + MstUtils::toString(res_j) + "_" + SeqTools::idxToTriple(res_j_aa);
+        }
+
+protected:
+    void computeDistancesFromBBAtoms();
+
+    void writeAtomToBin(Atom* A, ostream& ofs);
+    Atom* readAtomFromBin(istream& ifs);
+
+private:
+    int target = -1;
+    int res_i = -1;
+    int res_j = -1;
+    res_t res_i_aa = SeqTools::unknownIdx();
+    res_t res_j_aa = SeqTools::unknownIdx();
+
+    /*
+    Ri: N, Ca, C, O; Rj: N, Ca, C, O (8 total, always in that order)
+    If the resPair was directly created from existing residues, then it does not manage it's own memory (this is to avoid unecessary duplication)
+    */
+    vector<Atom*> resPairAtoms;
+    CartesianPoint bbAtomDistances; // Ri:N - Rj:N, Ri:Ca-Rj:Ca, Ri:C-Rj:C (3 distances. Oxygen not considered)
+    bool ownsAtoms = false;
+
+    friend class augmentedStructureDB;
+};
+
+class resPairDB {
+    public:
+        resPairDB(string _resPairDBPath, bool _read = true) : resPairDBPath(_resPairDBPath), readMode(_read) {
+            cout << "read mode: " << readMode << "\tfrom file: " << resPairDBPath << endl;
+            openFileStream();
+        }
+
+        resPairDB(const resPairDB& other) : resPairDBPath(other.resPairDBPath), readMode(other.readMode) {
+            // MstUtils::assert(other.readMode, "Copying write-only frameDB file not supported");
+            cout << "Opening file stream for copy of frame DB: " << resPairDBPath << endl;
+            openFileStream();
+        }
+
+        ~resPairDB() {
+            // if ((!readMode)&&(frameAdded)) MstUtils::writeBin(fs,'E');
+            fs.close();
+        }
+
+        bool hasNext();
+        void skip();
+        void reset();
+
+        resPair* next();
+        vector<resPair*> loadAllResPairs();
+
+        void appendResPair(resPair* rP);
+
+    protected:
+        void openFileStream();
+        resPair* readNextFileSection();
+
+    private:
+        string resPairDBPath = "";
+        int version = 1;
+        bool readMode = true;
+        bool resPairAdded = false;
 
         fstream fs;
 };

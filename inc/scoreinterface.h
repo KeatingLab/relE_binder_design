@@ -8,6 +8,7 @@
 #include "fragmentdb.h"
 #include "hashframes.h"
 #include "residueframe.h"
+#include "searchrespairs.h"
 #include "utilities.h"
 
 class interfaceSearch {
@@ -95,119 +96,199 @@ class interfaceSearch {
 };
 
 struct binderScorerParams {
+    // Paths to databases
     string frameDBPath = ""; //path to database of mobile frames aligned to a global frame
+    string resPairDBPath = ""; //path to the database of interacting residue backbone atoms
     string potentialContactsJSONPath = ""; //path to JSON file with 2D probability density
-    mstreal posCut = 0; //angstroms
-    mstreal oriCut = 0; //degrees
+
+    // Search parameters
+    mstreal posCut = 0; //angstroms (residue frame)
+    mstreal oriCut = 0; //degrees (residue frame)
+    mstreal dCut = 0; //angstroms (residue backbone atoms)
+    mstreal RMSDCut = 0; //angstroms (residue backbone atoms)
+
+    // Scoring parameters
+    mstreal nonDesignableContactPenalty = 10.0; // penalty for having a contact geometry not observed in the PDB
+    mstreal noMatchesPenalty = 10.0; // penalty for having a residue backbone geometry not obsered in the PDB
+    
+    // Options for scoring
     bool renormalizeProbabilities = true;
     bool verbose = false;
 };
 
+// A base class that handles shared features of the binder scoring classes
 class binderScorer {
     public:
-        binderScorer(const binderScorerParams& params, augmentedStructure& _target);
-
-        binderScorer(const binderScorerParams& params, augmentedStructure& complex, string binderChainIDsString, string targetChainIDsString);
+        /**
+         * @brief Constructor using only a target structure
+         * 
+         * @param params 
+         * @param _target 
+         */
+        binderScorer(const binderScorerParams& _params, Structure& _target);
+        
+        /**
+         * @brief Constructor that takes a structure of the complex and converts into a proper format for scoring
+         * 
+         * @param params 
+         * @param complex 
+         * @param binderChainIDsString 
+         * @param targetChainIDsString 
+         */
+        binderScorer(const binderScorerParams& _params, Structure& complex, string binderChainIDsString, string targetChainIDsString);
 
         ~binderScorer() {
             if (complexMode) delete binder;
-            contact_info_out->close();
-            if (binder_info_out != nullptr) delete binder_info_out;
-            if (contact_info_out != nullptr) delete contact_info_out;
-            if (clash_info_out != nullptr) delete clash_info_out;
-            for (auto const it : frameTables) delete it.second;
         }
 
-        void setBinder(augmentedStructure* _binder);
-        augmentedStructure* getBinder() {return binder;}
+        void setBinder(Structure* _binder);
         void setTargetBindingSiteResidues(vector<Residue*> sel);
         void defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold = 0.05);
-
+        
         int defineInterfaceByPotentialContacts();
-        // void manuallySetInterface(vector<pair<Residue*,Residue*>> contacts);
+        int countDesignableContacts() {return pConts.getNumContacts();}
 
+        Structure* getBinder() {return binder;}
         vector<Residue*> getTargetResidues() {return target.getResidues();}
         vector<Residue*> getBinderResidues() {return binder->getResidues();}
 
-        residueFrame* defineQuery(Residue* global, Residue* mobile) {
-            residueFrame* refFrame = target.getResidueFrame(global->getResidueIndex());
-            residueFrame* mobileFrame = binder->getResidueFrame(mobile->getResidueIndex());
-            return mobileFrame->frameRelativeToOther(*refFrame);
-        }
-
-        mstreal scoreInterface();
-
-        int countDesignableContacts() {return pConts.getNumContacts();}
-        int countNonDesignableContacts() {return pConts.getNumNonDesignablePairs();}
-
-        void writeBinderScoresToFile(bool append = true);
-        void writeContactScoresToFile(bool append = true);
-        void writeContactPropertyToFile(string dirPath = "");
-        void writeResidueClashesToFile(bool append = true);
-        void writeResiduesClashesToSimpleFile(string dirPath = "");
-        void writePSSM(string dirPath = "");
-
     protected:
-        void prepareVoxelGrids(string frameDBPath);
         void defineInterfaceUsingVDWContacts();
-        // void setFrameProbabilityTables();
+        void setBackgroundSurfaceProbabilities();
 
-        int residueFrameCounts(pair<Residue*,Residue*> resPair);
-
-        mstreal logProb(mstreal numerator, mstreal denominator, mstreal pseudocount = 1.0);
-        mstreal logCounts(int counts, mstreal pseudocount = 1.0) {return -log(counts+pseudocount);}
-
-        vector<mstreal> getAADistAtPos(Residue* binderRes);
-
-        /**
-         * @brief Compute the joint probability from multiple amino acid distributions
-         * 
-         * @param aaDists The inner vector is the probability distribution, the outer vector is each distribution
-         * @return vector<mstreal> 
-         */
-        vector<mstreal> getJointProbability(vector<vector<mstreal>> aaDists);
-
-    private:
         string targetName = "";
-        augmentedStructure target;
-        Structure targetBackbone;
-        augmentedStructure* binder = nullptr;
+        Structure target;
+        Structure* binder = nullptr;
         set<string> aaTypes;
-        bool verbose = false;
+        map<res_t,mstreal> backgroundSurfaceProbabilities;
 
         vector<Chain*> binderChains;
         vector<Chain*> proteinChains;
 
         potentialContacts pConts;
         vector<pair<Residue*,Residue*>> interfaceResidues; // target, binder residue
-        vector<pair<Residue*,Residue*>> nonDesignableInterfaceResidues; // target, binder
-        set<Residue*> targetResidues; //subset of residues in the target found in the binding site
-
-        mstreal nonDesignableContactPenalty = 10.0;
-        mstreal designabilityScore = 0.0;
-        int numNonDesignable = 0;
-
-        mstreal posCut = 1.0; //angstroms
-        mstreal oriCut = 10.0; //degrees
-
-        // bool renormalizeProbabilities = true;
-        map<res_t,frameTable*> frameTables;
-
+        vector<pair<Residue*,Residue*>> nonDesignableInterfaceResidues; // target, binder residue
+        set<Residue*> targetBindingResidues; //subset of residues in the target found in the binding site
+        
+        binderScorerParams params;
         MstTimer timer;
+        bool complexMode = false; //indicates that a complex structure (target + binder) was provided
+};
 
-        // vector<mstreal> probabilities;
-        // vector<pair<int,int>> countAndNorm;
-        vector<int> interfaceCounts;
-        vector<mstreal> interfaceScores;
-        vector<mstreal> searchTimes;
+/* --- --- --- --- --- residueBackboneBinderScorer --- --- --- --- --- */
+
+class residueBackboneBinderScorer: public binderScorer {
+    public:
+        residueBackboneBinderScorer(const binderScorerParams& params, Structure& target) : binderScorer(params,target), resPairSearcher(params.resPairDBPath,params.dCut,params.RMSDCut) {};
+
+        residueBackboneBinderScorer(const binderScorerParams& params, Structure& complex, string binderChainIDsString, string targetChainIDsString) : binderScorer(params,complex,binderChainIDsString,targetChainIDsString), resPairSearcher(params.resPairDBPath,params.dCut,params.RMSDCut) {};
+
+        mstreal scoreBinder();
+
+        void writeBinderScoresToFile(bool append = true);
+        void writeContactScoresToFile(bool append = true);
+
+        // void writeBinderPSSMToFile(bool append = true);
+
+    protected:
+        void scoreContact(pair<Residue*,Residue*> contactingRes, int& totalMatches, int& nativeMatches, mstreal& contactScore);
+
+    private:
+        findResPairs resPairSearcher;
+
+        mstreal binderScore = 0.0;
+        vector<mstreal> binderScorePerContact;
+        vector<int> numMatchesPerContact;
+        vector<int> numNativeMatchesPerContact;
+        vector<mstreal> searchTimePerContact;
 
         fstream* binder_info_out = nullptr;
         fstream* contact_info_out = nullptr;
-        fstream* clash_info_out = nullptr;
-        // fstream* match_info_out = nullptr;
 
-        bool complexMode = false; //indicates that we're scoring a real complex
 };
+
+// class residueFrameBinderScorer : public binderScorer {
+//     public:
+//         residueFrameBinderScorer(const binderScorerParams& params, augmentedStructure& _target);
+
+//         residueFrameBinderScorer(const binderScorerParams& params, augmentedStructure& complex, string binderChainIDsString, string targetChainIDsString);
+
+//         ~residueFrameBinderScorer() {
+//             if (complexMode) delete augmentedBinder;
+//             contact_info_out->close();
+//             if (binder_info_out != nullptr) delete binder_info_out;
+//             if (contact_info_out != nullptr) delete contact_info_out;
+//             if (clash_info_out != nullptr) delete clash_info_out;
+//             for (auto const it : frameTables) delete it.second;
+//         }
+
+//         residueFrame* defineQuery(Residue* global, Residue* mobile) {
+//             residueFrame* refFrame = target.getResidueFrame(global->getResidueIndex());
+//             residueFrame* mobileFrame = binder->getResidueFrame(mobile->getResidueIndex());
+//             return mobileFrame->frameRelativeToOther(*refFrame);
+//         }
+
+//         mstreal scoreInterfaceDesignability();
+//         mstreal scoreInterfaceSequenceCompatibility();
+
+//         int countDesignableContacts() {return pConts.getNumContacts();}
+//         int countNonDesignableContacts() {return pConts.getNumNonDesignablePairs();}
+
+//         void writeBinderDesignabilityScoresToFile(bool append = true);
+//         void writeContactDesignabilityScoresToFile(bool append = true);
+
+//         void writeBinderSequenceCompatibilityScoresToFile(bool append = true);
+//         void writeContactSequenceCompatibilityScoresToFile(bool append = true);
+
+//         void writeContactPropertyToFile(string dirPath = "", bool designabilityScore = true);
+
+//         void writeResidueClashesToFile(bool append = true);
+//         void writeResiduesClashesToSimpleFile(string dirPath = "");
+//         void writePSSM(string dirPath = "");
+
+//     protected:
+//         void prepareVoxelGrids(string frameDBPath);
+//         // void setFrameProbabilityTables();
+
+//         int residueFrameCounts(pair<Residue*,Residue*> resPair);
+
+//         void residueFrameSequenceCompatibility(pair<Residue*,Residue*> resPair, int &totalMatches, int &nativeAAMatches, mstreal &sequenceCompatibilityScore);
+
+//         mstreal logProb(mstreal numerator, mstreal denominator, mstreal pseudocount = 1.0);
+//         mstreal logCounts(int counts, mstreal pseudocount = 1.0) {return -log(counts+pseudocount);}
+
+//         vector<mstreal> getAADistAtPos(Residue* binderRes);
+
+//         /**
+//          * @brief Compute the joint probability from multiple amino acid distributions
+//          * 
+//          * @param aaDists The inner vector is the probability distribution, the outer vector is each distribution
+//          * @return vector<mstreal> 
+//          */
+//         vector<mstreal> getJointProbability(vector<vector<mstreal>> aaDists);
+
+//     private:
+//         augmentedStructure augmentedTarget;
+//         augmentedStructure* augmentedBinder = nullptr;
+
+//         mstreal designabilityScore = 0.0;
+//         mstreal sequenceCompatibilityScore = 0.0;
+
+//         int numNonDesignable = 0;
+
+//         map<res_t,frameTable*> frameTables;
+
+//         vector<int> interfaceCounts;
+//         vector<mstreal> interfaceDesignabilityScores;
+//         vector<mstreal> interfaceSequenceCompatibilityScores;
+//         vector<int> interfaceTotalNumberOfMatches;
+//         vector<mstreal> searchTimes;
+
+//         fstream* binder_info_out = nullptr;
+//         fstream* contact_info_out = nullptr;
+//         fstream* clash_info_out = nullptr;
+//         // fstream* match_info_out = nullptr;
+// };
 
 class binderBackboneScorer {
     public:

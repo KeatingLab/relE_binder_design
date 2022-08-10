@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     vdwContacts vdwC(S.getResidues());
 
     alignInteractingFrames alignF;
-    proteinFrameDB& db = alignF.getDB();
+    augmentedStructureDB& db = alignF.getDB();
     augmentedStructure aS(S);
     db.addTarget(aS);
     
