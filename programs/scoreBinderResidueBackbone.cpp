@@ -22,6 +22,7 @@ int main(int argc, char *argv[]) {
     op.addOption("binderBinSubset","--targetPDB and --binderBin mode only. A list of structure names that will be extracted from the seed binary file and scored",false);
     op.addOption("vdwContacts","If provided, will define the interface using VDW contacts, otherwise will use CB definition. Not compatible with --targetPDB mode",false);
     op.addOption("distanceCutoff","The distance cutoff that is applied when determining whether a putative match has similar backbone atom distances (default = 0.25 Å)",false);
+    // op.addOption("angleCut","The angle cutoff that is applied when a putative match has similar orientation to the query (default = 45 degrees",false);
     op.addOption("RMSDCutoff","The RMSD cutoff that is applied when confirming a putative match (default = 0.25 Å)",false);
     op.addOption("minConts","If provided, will only score binder structures with more than X contacts per residue (5 potential contacts or 2.5 vdW contacts per res)",false);
     op.addOption("verbose","");
@@ -47,6 +48,7 @@ int main(int argc, char *argv[]) {
     string binderBinSubsetPath = op.getString("binderBinSubset","");
     bool defineVDWContacts = op.isGiven("vdwContacts");
     mstreal distanceCutoff = op.getReal("distanceCutoff",0.25);
+    // mstreal angleCutoff = op.getReal("angleCut",30);
     mstreal RMSDCutoff = op.getReal("RMSDCutoff",0.25);
     mstreal minConts = op.getReal("minConts",-1);
     bool verbose = op.isGiven("verbose");
@@ -57,6 +59,7 @@ int main(int argc, char *argv[]) {
     params.resPairDBPath = resPairDB;
     params.potentialContactsJSONPath = contactData;
     params.dCut = distanceCutoff;
+    // params.angleCut = angleCutoff;
     params.RMSDCut = RMSDCutoff;
     params.verbose = verbose;
 
@@ -74,6 +77,7 @@ int main(int argc, char *argv[]) {
 
         scorer->writeBinderScoresToFile();
         scorer->writeContactScoresToFile();
+        scorer->writeTrainingDataToFile();
 
     } else {
         // score target with multiple designed binders mode
@@ -111,6 +115,7 @@ int main(int argc, char *argv[]) {
 
                 scorer->writeBinderScoresToFile();
                 scorer->writeContactScoresToFile();
+                scorer->writeTrainingDataToFile();
 
                 count++;
             }
@@ -153,6 +158,7 @@ int main(int argc, char *argv[]) {
 
                     scorer->writeBinderScoresToFile();
                     scorer->writeContactScoresToFile();
+                    scorer->writeTrainingDataToFile();
 
                     seed->writePDB(pdbFilePrefix+seed->getName()+".pdb");
 
@@ -185,6 +191,7 @@ int main(int argc, char *argv[]) {
 
                     scorer->writeBinderScoresToFile();
                     scorer->writeContactScoresToFile();
+                    scorer->writeTrainingDataToFile();
 
                     delete seed;
                 }   

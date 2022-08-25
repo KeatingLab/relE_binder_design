@@ -214,6 +214,8 @@ class resPair {
             res_j = rP.res_j;
             res_i_aa = rP.res_i_aa;
             res_j_aa = rP.res_j_aa;
+            CaDistance = rP.CaDistance;
+            resFrameBasisVectorAngles = rP.resFrameBasisVectorAngles;
             bbAtomDistances = rP.bbAtomDistances;
             ownsAtoms = rP.ownsAtoms;
             if (ownsAtoms) {
@@ -230,6 +232,8 @@ class resPair {
             res_j = rP.res_j;
             res_i_aa = rP.res_i_aa;
             res_j_aa = rP.res_j_aa;
+            CaDistance = rP.CaDistance;
+            resFrameBasisVectorAngles = rP.resFrameBasisVectorAngles;
             bbAtomDistances = rP.bbAtomDistances;
             ownsAtoms = rP.ownsAtoms;
             if (ownsAtoms) {
@@ -248,7 +252,10 @@ class resPair {
         int getResJ() {return res_j;}
         res_t getResIAAIndex() {return res_i_aa;}
         res_t getResJAAIndex() {return res_j_aa;}
-        CartesianPoint getDistances() {return bbAtomDistances;}
+        mstreal getCaDistance() {return CaDistance;}
+        CartesianPoint getbbAtomDistances() {return bbAtomDistances;}
+        CartesianPoint getAllbbAtomDistances();
+        CartesianPoint getAngles() {return resFrameBasisVectorAngles;}
         vector<Atom*> getAtoms() {return resPairAtoms;} //Careful! The atoms are stripped of all info other than coordinates
 
         string getName() {
@@ -256,7 +263,8 @@ class resPair {
         }
 
 protected:
-    void computeDistancesFromBBAtoms();
+    // void computeDistancesFromBBAtoms();
+    void computeInternalRepresentation();
 
     void writeAtomToBin(Atom* A, ostream& ofs);
     Atom* readAtomFromBin(istream& ifs);
@@ -273,6 +281,8 @@ private:
     If the resPair was directly created from existing residues, then it does not manage it's own memory (this is to avoid unecessary duplication)
     */
     vector<Atom*> resPairAtoms;
+    mstreal CaDistance; // Ri:Ca - Rj:Ca
+    CartesianPoint resFrameBasisVectorAngles; // the angle between each pair of residue frame basis vectors
     CartesianPoint bbAtomDistances; // Ri:N - Rj:N, Ri:Ca-Rj:Ca, Ri:C-Rj:C (3 distances. Oxygen not considered)
     bool ownsAtoms = false;
 

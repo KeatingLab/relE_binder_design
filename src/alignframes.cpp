@@ -439,10 +439,84 @@ resPair::resPair(Residue* Ri, Residue* Rj, int _target) : target(_target) {
     vector<Atom*> RjBBAtoms = RotamerLibrary::getBackbone(Rj);
     resPairAtoms.insert(resPairAtoms.end(),RiBBAtoms.begin(),RiBBAtoms.end());
     resPairAtoms.insert(resPairAtoms.end(),RjBBAtoms.begin(),RjBBAtoms.end());
-    computeDistancesFromBBAtoms();
+    // computeDistancesFromBBAtoms;
+    computeInternalRepresentation();
 }
 
-void resPair::computeDistancesFromBBAtoms() {
+// void resPair::computeDistancesFromBBAtoms() {
+//     mstreal NDistance = resPairAtoms[0]->getCoor().distance(resPairAtoms[4]->getCoor());
+//     mstreal CaDistance = resPairAtoms[1]->getCoor().distance(resPairAtoms[5]->getCoor());
+//     mstreal CDistance = resPairAtoms[2]->getCoor().distance(resPairAtoms[6]->getCoor());
+//     bbAtomDistances = CartesianPoint(NDistance,CaDistance,CDistance);
+// }
+
+CartesianPoint resPair::getAllbbAtomDistances() {
+    // Compute all inter-residue distances between the 4 backbone atoms of the residue pair
+    mstreal N_N   = resPairAtoms[0]->getCoor().distance(resPairAtoms[4]->getCoor());
+    mstreal N_Ca  = resPairAtoms[0]->getCoor().distance(resPairAtoms[5]->getCoor());
+    mstreal N_C   = resPairAtoms[0]->getCoor().distance(resPairAtoms[6]->getCoor());
+    mstreal N_O   = resPairAtoms[0]->getCoor().distance(resPairAtoms[7]->getCoor());
+    mstreal Ca_N  = resPairAtoms[1]->getCoor().distance(resPairAtoms[4]->getCoor());
+    mstreal Ca_Ca = resPairAtoms[1]->getCoor().distance(resPairAtoms[5]->getCoor());
+    mstreal Ca_C  = resPairAtoms[1]->getCoor().distance(resPairAtoms[6]->getCoor());
+    mstreal Ca_O  = resPairAtoms[1]->getCoor().distance(resPairAtoms[7]->getCoor());
+    mstreal C_N   = resPairAtoms[2]->getCoor().distance(resPairAtoms[4]->getCoor());
+    mstreal C_Ca  = resPairAtoms[2]->getCoor().distance(resPairAtoms[5]->getCoor());
+    mstreal C_C   = resPairAtoms[2]->getCoor().distance(resPairAtoms[6]->getCoor());
+    mstreal C_O   = resPairAtoms[2]->getCoor().distance(resPairAtoms[7]->getCoor());
+    mstreal O_N   = resPairAtoms[3]->getCoor().distance(resPairAtoms[4]->getCoor());
+    mstreal O_Ca  = resPairAtoms[3]->getCoor().distance(resPairAtoms[5]->getCoor());
+    mstreal O_C   = resPairAtoms[3]->getCoor().distance(resPairAtoms[6]->getCoor());
+    mstreal O_O   = resPairAtoms[3]->getCoor().distance(resPairAtoms[7]->getCoor());
+    return CartesianPoint({N_N,N_Ca,N_C,N_O,
+                          Ca_N,Ca_Ca,Ca_C,Ca_O,
+                          C_N,C_Ca,C_C,C_O,
+                          O_N,O_Ca,O_C,O_O});
+}
+
+void resPair::computeInternalRepresentation() {
+    CaDistance = resPairAtoms[1]->getCoor().distance(resPairAtoms[5]->getCoor());
+    residueFrame Ri(resPairAtoms[0],resPairAtoms[1],resPairAtoms[2]);
+    residueFrame Rj(resPairAtoms[4],resPairAtoms[5],resPairAtoms[6]);
+
+    // Get all three basis vectors for each residue frame
+    CartesianPoint Ri_x = Ri.getX();
+    CartesianPoint Rj_x = Rj.getX();
+    CartesianPoint Ri_y = Ri.getY();
+    CartesianPoint Rj_y = Rj.getY();
+    CartesianPoint Ri_z = Ri.getZ();
+    CartesianPoint Rj_z = Rj.getZ();
+
+    // Compute the cosine angle between each pair of basis vectors
+    mstreal xCosSim = Ri_x.cosineAngle(Rj_x);
+    mstreal yCosSim = Ri_y.cosineAngle(Rj_y);
+    mstreal zCosSim = Ri_z.cosineAngle(Rj_z);
+
+    mstreal xAngle, yAngle, zAngle;
+    if (xCosSim == 1.0) xAngle = 0.0;
+    else xAngle = (180/M_PI)*acos(xCosSim);
+    if (yCosSim == 1.0) yAngle = 0.0;
+    else yAngle = (180/M_PI)*acos(yCosSim);
+    if (zCosSim == 1.0) zAngle = 0.0;
+    else zAngle = (180/M_PI)*acos(zCosSim);
+    resFrameBasisVectorAngles = CartesianPoint(xAngle,yAngle,zAngle);
+    // if (std::isnan(xAngle) || std::isnan(yAngle) || std::isnan(zAngle)) {
+    //     cout << "Ca distance: " << getCaDistance() << endl;
+    //     cout << "Ri_x: " << Ri_x << endl;
+    //     cout << "Rj_x: " << Rj_x << endl;
+    //     cout << "Ri_y: " << Ri_y << endl;
+    //     cout << "Rj_y: " << Rj_y << endl;
+    //     cout << "Ri_z: " << Ri_z << endl;
+    //     cout << "Rj_z: " << Rj_z << endl;
+    //     cout << "xCosSimilarity: " << Ri_x.cosineAngle(Rj_x) << endl;
+    //     cout << "xAngle radians: " << acos(Ri_x.cosineAngle(Rj_x)) << endl;
+    //     cout << "yCosSimilarity: " << Ri_y.cosineAngle(Rj_y) << endl;
+    //     cout << "yAngle radians: " << acos(Ri_y.cosineAngle(Rj_y)) << endl;
+    //     cout << "zCosSimilarity: " << Ri_z.cosineAngle(Rj_z) << endl;
+    //     cout << "zAngle radians: " << acos(Ri_z.cosineAngle(Rj_z)) << endl;
+    // }
+
+    // Get the distances between backbone atoms
     mstreal NDistance = resPairAtoms[0]->getCoor().distance(resPairAtoms[4]->getCoor());
     mstreal CaDistance = resPairAtoms[1]->getCoor().distance(resPairAtoms[5]->getCoor());
     mstreal CDistance = resPairAtoms[2]->getCoor().distance(resPairAtoms[6]->getCoor());
@@ -477,7 +551,7 @@ void resPair::readData(istream& ifs) {
     MstUtils::readBin(ifs, res_i_aa);
     MstUtils::readBin(ifs, res_j_aa);
 
-    computeDistancesFromBBAtoms();
+    computeInternalRepresentation();
 }
 
 void resPair::writeAtomToBin(Atom* A, ostream& ofs) {

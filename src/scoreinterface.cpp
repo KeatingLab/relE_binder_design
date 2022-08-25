@@ -300,7 +300,9 @@ mstreal residueBackboneBinderScorer::scoreBinder() {
     binderScorePerContact.clear();
     numMatchesPerContact.clear();
     numNativeMatchesPerContact.clear();
+    nMatchesAAPerContact.clear();
     searchTimePerContact.clear();
+    backboneAtomDistancesPerContact.clear();
 
     if (interfaceResidues.empty()) {
         cout << "No contacts to score." << endl;
@@ -321,6 +323,7 @@ mstreal residueBackboneBinderScorer::scoreBinder() {
 
 void residueBackboneBinderScorer::scoreContact(pair<Residue*,Residue*> contactingRes, int& totalMatches, int& nativeMatches, mstreal& contactScore) {
     resPairSearcher.setQuery(contactingRes.first,contactingRes.second);
+    backboneAtomDistancesPerContact.push_back(resPairSearcher.getQuery().getAllbbAtomDistances());
     timer.start();
     totalMatches = resPairSearcher.searchForMatches();
     timer.stop();
@@ -331,9 +334,11 @@ void residueBackboneBinderScorer::scoreContact(pair<Residue*,Residue*> contactin
         nativeMatches = resPairSearcher.getNumMatchesWithResidueType(true);
         mstreal nativeResProbFromMatches = mstreal(nativeMatches+1)/mstreal(totalMatches+aaTypes.size());
         contactScore = -log2(nativeResProbFromMatches/backgroundSurfaceProbabilities[targetResType]);
+        nMatchesAAPerContact.push_back(resPairSearcher.getNumMatchesByAAType(true));
     } else {
         nativeMatches = 0;
         contactScore = 10.0;
+        nMatchesAAPerContact.push_back(vector<int>(20,0));
     }
     binderScorePerContact.push_back(contactScore);
     numMatchesPerContact.push_back(totalMatches);
@@ -380,6 +385,47 @@ void residueBackboneBinderScorer::writeContactScoresToFile(bool append) {
     }
 }
 
+void residueBackboneBinderScorer::writeTrainingDataToFile(bool append) {
+    if (training_info_out == nullptr) {
+        training_info_out = new fstream;
+        string filename = targetName + "_trainingData.csv";
+        MstUtils::openFile(*training_info_out,filename,fstream::out);
+        // complex and contacting residues
+        *training_info_out << "targetName,binderName,targetRes,targetResName,binderRes,binderResName,";
+
+        // geometric features describing contacting residues
+        *training_info_out << "N-N,N-Ca,N-C,N-O,Ca-N,Ca-Ca,Ca-C,Ca-O,C-N,C-Ca,C-C,C-O,O-N,O-Ca,O-C,O-O,";
+
+        // statistics from the database
+        *training_info_out << "binderScore,nTotalMatches,nNativeMatches,";
+
+        // counts of each aa type
+        *training_info_out << "A,C,D,E,F,G,H,I,K,L,M,N,P,Q,R,S,T,V,W,Y" << endl;
+    }
+    for (int i = 0; i < interfaceResidues.size(); i++) {
+        // complex and contacting residues
+        Residue* targetR = interfaceResidues[i].first;
+        Residue* binderR = interfaceResidues[i].second;
+        mstreal distanceCA = (targetR->findAtom("CA")->getCoor() - binderR->findAtom("CA")->getCoor()).norm();
+        *training_info_out << targetName << ",";
+        *training_info_out << binderR->getStructure()->getName() << ",";
+        *training_info_out << targetR->getChainID() << targetR->getNum() << "," << targetR->getName() << ",";
+        *training_info_out << binderR->getChainID() << binderR->getNum() << "," << binderR->getName()<< ",";
+
+        // geometric features describing contacting residues
+        CartesianPoint backboneAtomDistances = backboneAtomDistancesPerContact[i];
+        for (mstreal distance : backboneAtomDistances) *training_info_out << distance << ",";
+
+        // statistics from the database
+        *training_info_out << binderScorePerContact[i] << ",";
+        *training_info_out << numMatchesPerContact[i] << ",";
+        *training_info_out << numNativeMatchesPerContact[i];
+
+        // counts of each aa type
+        for (int count : nMatchesAAPerContact[i]) *training_info_out << "," << count;
+        *training_info_out << endl;
+    }
+}
 
 
 /* --- --- --- --- --- residueFrameBinderScorer --- --- --- --- --- */

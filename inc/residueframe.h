@@ -9,6 +9,7 @@ class residueFrame : public Frame {
     public:
         residueFrame() {};
         residueFrame(Residue* R) : parent(R), aa(SeqTools::aaToIdx(R->getName())) {defineFrame(R);}
+        residueFrame(Atom* N, Atom* Ca, Atom* C) {defineFrame(N,Ca,C);}
 
         residueFrame* frameRelativeToOther(const residueFrame& other);
         
@@ -26,6 +27,7 @@ class residueFrame : public Frame {
 
     protected:
         void defineFrame(Residue* R);
+        void defineFrame(Atom* N, Atom* Ca, Atom* C);
 
     private:
         Residue* parent = nullptr;

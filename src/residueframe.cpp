@@ -22,19 +22,22 @@ void residueFrame::writeToFile(string name, fstream& out) {
 }
 
 void residueFrame::defineFrame(Residue* R) {
+    bool strict = false;
+    Atom* N = R->findAtom("N",strict);
+    Atom* Ca = R->findAtom("CA",strict);
+    Atom* C = R->findAtom("C",strict);
+    if ((N == NULL)||(Ca == NULL)||(C == NULL)) {
+        MstUtils::error("Residue "+R->getChainID()+MstUtils::toString(R->getNum())+" is missing one or more of N, Ca, C atoms","residueFrame::defineFrame");
+    }
+    defineFrame(N,Ca,C);
+}
+
+void residueFrame::defineFrame(Atom* N_atom, Atom* Ca_atom, Atom* C_atom) {
     /*
     Following Ingraham et. al 2019, the orientation is defined as three basis vectors: [b, n, b x n]
     b = the negative bisector of the angle between N - Ca and C - Ca
     n = the unit vector normal to the plane formed between N - Ca and C - Ca
     */
-
-    bool strict = false;
-    Atom* N_atom = R->findAtom("N",strict);
-    Atom* Ca_atom = R->findAtom("CA",strict);
-    Atom* C_atom = R->findAtom("C",strict);
-    if ((N_atom == NULL)||(Ca_atom == NULL)||(C_atom == NULL)) {
-        MstUtils::error("Residue "+R->getChainID()+MstUtils::toString(R->getNum())+" is missing one or more of N, Ca, C atoms","residueFrame::defineFrame");
-    }
     CartesianPoint N = N_atom->getCoor();
     CartesianPoint Ca = Ca_atom->getCoor();
     CartesianPoint C = C_atom->getCoor();

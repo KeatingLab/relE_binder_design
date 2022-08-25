@@ -105,6 +105,7 @@ struct binderScorerParams {
     mstreal posCut = 0; //angstroms (residue frame)
     mstreal oriCut = 0; //degrees (residue frame)
     mstreal dCut = 0; //angstroms (residue backbone atoms)
+    mstreal angleCut = 0; // degrees (between residue frame basis vectors)
     mstreal RMSDCut = 0; //angstroms (residue backbone atoms)
 
     // Scoring parameters
@@ -179,14 +180,15 @@ class binderScorer {
 
 class residueBackboneBinderScorer: public binderScorer {
     public:
-        residueBackboneBinderScorer(const binderScorerParams& params, Structure& target) : binderScorer(params,target), resPairSearcher(params.resPairDBPath,params.dCut,params.RMSDCut) {};
+        residueBackboneBinderScorer(const binderScorerParams& params, Structure& target) : binderScorer(params,target), resPairSearcher(params.resPairDBPath,params.dCut,params.angleCut,params.RMSDCut) {};
 
-        residueBackboneBinderScorer(const binderScorerParams& params, Structure& complex, string binderChainIDsString, string targetChainIDsString) : binderScorer(params,complex,binderChainIDsString,targetChainIDsString), resPairSearcher(params.resPairDBPath,params.dCut,params.RMSDCut) {};
+        residueBackboneBinderScorer(const binderScorerParams& params, Structure& complex, string binderChainIDsString, string targetChainIDsString) : binderScorer(params,complex,binderChainIDsString,targetChainIDsString), resPairSearcher(params.resPairDBPath,params.dCut,params.angleCut,params.RMSDCut) {};
 
         mstreal scoreBinder();
 
         void writeBinderScoresToFile(bool append = true);
         void writeContactScoresToFile(bool append = true);
+        void writeTrainingDataToFile(bool append = true);
 
         // void writeBinderPSSMToFile(bool append = true);
 
@@ -200,10 +202,13 @@ class residueBackboneBinderScorer: public binderScorer {
         vector<mstreal> binderScorePerContact;
         vector<int> numMatchesPerContact;
         vector<int> numNativeMatchesPerContact;
+        vector<vector<int>> nMatchesAAPerContact;
         vector<mstreal> searchTimePerContact;
+        vector<CartesianPoint> backboneAtomDistancesPerContact;
 
         fstream* binder_info_out = nullptr;
         fstream* contact_info_out = nullptr;
+        fstream* training_info_out = nullptr;
 
 };
 
