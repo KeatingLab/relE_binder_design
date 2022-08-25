@@ -355,10 +355,12 @@ void residueBackboneBinderScorer::scoreContact(pair<Residue*,Residue*> contactin
     searchTimePerContact.push_back(searchTime);
 }
 
-void residueBackboneBinderScorer::writeBinderScoresToFile(bool append) {
+void residueBackboneBinderScorer::writeBinderScoresToFile(bool append, string base) {
     if (binder_info_out == nullptr) {
         binder_info_out = new fstream;
-        string filename = targetName + "_binderScores.tsv";
+        string filename;
+        if (base != "") filename = base + "_binderScores.tsv";
+        else filename = targetName + "_binderScores.tsv";
         MstUtils::openFile(*binder_info_out,filename,fstream::out);
         *binder_info_out << "targetName\tbinderName\tbinderScore\tnumPotentialContacts\tnumBinderRes" << endl;
     }
@@ -370,10 +372,12 @@ void residueBackboneBinderScorer::writeBinderScoresToFile(bool append) {
     *binder_info_out << endl;
 }
 
-void residueBackboneBinderScorer::writeContactScoresToFile(bool append) {
+void residueBackboneBinderScorer::writeContactScoresToFile(bool append, string base) {
     if (contact_info_out == nullptr) {
         contact_info_out = new fstream;
-        string filename = targetName + "_contactScores.tsv";
+        string filename;
+        if (base != "") filename = base + "_contactScores.tsv";
+        else filename = targetName + "_contactScores.tsv";
         MstUtils::openFile(*contact_info_out,filename,fstream::out);
         *contact_info_out << "targetName\tbinderName\ttargetRes\ttargetResName\tbinderRes\tbinderResName\tbinderScore\tnTotalMatches\tnNativeMatches\tdistanceCa\tsearchTime_ms" << endl;
     }
@@ -394,10 +398,12 @@ void residueBackboneBinderScorer::writeContactScoresToFile(bool append) {
     }
 }
 
-void residueBackboneBinderScorer::writeTrainingDataToFile(bool append) {
+void residueBackboneBinderScorer::writeTrainingDataToFile(bool append, string base) {
     if (training_info_out == nullptr) {
         training_info_out = new fstream;
-        string filename = targetName + "_trainingData.csv";
+        string filename;
+        if (base != "") filename = base + "_trainingData.csv";
+        else filename = targetName + "_trainingData.csv";
         MstUtils::openFile(*training_info_out,filename,fstream::out);
         // complex and contacting residues
         *training_info_out << "targetName,binderName,targetRes,targetResName,binderRes,binderResName,";

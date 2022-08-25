@@ -70,7 +70,6 @@ int main(int argc, char *argv[]) {
     params.verbose = verbose;
 
     if (complexPDB != "") {
-        cout << "eh" << endl;
         augmentedStructure complex(complexPDB,"SKIPHETERO|ALLOW ILE CD1");
         scorer = new residueBackboneBinderScorer(params,complex,binderChainIDsString,targetChainIDsString);
 
@@ -87,7 +86,6 @@ int main(int argc, char *argv[]) {
         scorer->writeTrainingDataToFile();
 
     } else if (complexPDBList != "") {
-        cout << "ehh" << endl;
         scorer = new residueBackboneBinderScorer(params);
         vector<string> lines = MstUtils::fileToArray(complexPDBList);
         for (string line : lines) {
@@ -108,9 +106,10 @@ int main(int argc, char *argv[]) {
             mstreal score = scorer->scoreBinder();
             cout << "Binder score: " << score << endl;
 
-            scorer->writeBinderScoresToFile();
-            scorer->writeContactScoresToFile();
-            scorer->writeTrainingDataToFile();
+            string listName = MstSys::splitPath(complexPDBList,1);
+            scorer->writeBinderScoresToFile(true,listName);
+            scorer->writeContactScoresToFile(true,listName);
+            scorer->writeTrainingDataToFile(true,listName);
         }
 
     } else {

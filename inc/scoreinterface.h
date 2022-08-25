@@ -196,9 +196,9 @@ class residueBackboneBinderScorer: public binderScorer {
 
         mstreal scoreBinder();
 
-        void writeBinderScoresToFile(bool append = true);
-        void writeContactScoresToFile(bool append = true);
-        void writeTrainingDataToFile(bool append = true);
+        void writeBinderScoresToFile(bool append = true, string base = "");
+        void writeContactScoresToFile(bool append = true, string base = "");
+        void writeTrainingDataToFile(bool append = true, string base = "");
 
         // void writeBinderPSSMToFile(bool append = true);
 
