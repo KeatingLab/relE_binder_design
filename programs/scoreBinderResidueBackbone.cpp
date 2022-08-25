@@ -70,7 +70,11 @@ int main(int argc, char *argv[]) {
     params.verbose = verbose;
 
     if (complexPDB != "") {
-        augmentedStructure complex(complexPDB,"SKIPHETERO|ALLOW ILE CD1");
+        Structure originalComplex(complexPDB,"SKIPHETERO|ALLOW ILE CD1");
+        Structure cleanedComplex;
+        RotamerLibrary::extractProtein(cleanedComplex,originalComplex);
+        augmentedStructure complex(cleanedComplex);
+        complex.setName(MstSys::splitPath(complexPDB,1));
         scorer = new residueBackboneBinderScorer(params,complex,binderChainIDsString,targetChainIDsString);
 
         if (!defineVDWContacts) {
@@ -95,7 +99,11 @@ int main(int argc, char *argv[]) {
             string targetChainIDsString = val[1];
             string binderChainIDsString = val[2];
             cout << complexPDBPath << " " << targetChainIDsString << " " << binderChainIDsString << endl;
-            augmentedStructure complex(complexPDBPath,"SKIPHETERO|ALLOW ILE CD1");
+            Structure originalComplex(complexPDBPath,"SKIPHETERO|ALLOW ILE CD1");
+            Structure cleanedComplex;
+            RotamerLibrary::extractProtein(cleanedComplex,originalComplex);
+            augmentedStructure complex(cleanedComplex);
+            complex.setName(MstSys::splitPath(complexPDBPath,1));
             scorer->setComplex(complex,targetChainIDsString,binderChainIDsString);
 
             if (!defineVDWContacts) {
