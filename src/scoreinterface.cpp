@@ -177,7 +177,15 @@ binderScorer::binderScorer(const binderScorerParams& _params, Structure& _target
 
 binderScorer::binderScorer(const binderScorerParams& _params, Structure& complex, string binderChainIDsString, string targetChainIDsString) : params(_params) {
     aaTypes = SeqToolsExtension::getAANames();
+    setComplex(complex,binderChainIDsString,targetChainIDsString);
 
+    // in case the user will switch to using potential contacts later, load that data
+    pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
+    setBackgroundSurfaceProbabilities();
+}
+
+void binderScorer::setComplex(Structure& complex, string binderChainIDsString, string targetChainIDsString) {
+    if (complexMode) delete binder;
     vector<string> targetChainIDs = MstUtils::split(targetChainIDsString,"_");
     cout << "target chain IDs:";
     for (string s : targetChainIDs) cout << "\t" << s << endl;
@@ -210,17 +218,18 @@ binderScorer::binderScorer(const binderScorerParams& _params, Structure& complex
     
     // define interface by looking at VDW contacts
     defineInterfaceUsingVDWContacts();
-
-    // depending on what target residues are defined as the binding site, renormalize the frame probabilities
-    // setFrameProbabilityTables();
-
-    // in case the user will switch to using potential contacts later, load that data
-    pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
-    setBackgroundSurfaceProbabilities();
 }
 
 void binderScorer::setBinder(Structure* _binder) {
+    if (complexMode) delete binder;
     binder = _binder;
+    complexMode = false;
+}
+
+void binderScorer::setTarget(Structure& _target) {
+    target = _target;
+    if (complexMode) delete binder;
+    complexMode = false;
 }
 
 void binderScorer::setTargetBindingSiteResidues(vector<Residue*> sel) {

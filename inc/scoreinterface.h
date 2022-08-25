@@ -120,6 +120,12 @@ struct binderScorerParams {
 // A base class that handles shared features of the binder scoring classes
 class binderScorer {
     public:
+        binderScorer(const binderScorerParams& _params) : params(_params) {
+            aaTypes = SeqToolsExtension::getAANames();
+            pConts.load2DProbabilityDensities(params.potentialContactsJSONPath);
+            setBackgroundSurfaceProbabilities();
+        }
+
         /**
          * @brief Constructor using only a target structure
          * 
@@ -142,7 +148,9 @@ class binderScorer {
             if (complexMode) delete binder;
         }
 
+        void setComplex(Structure& complex, string binderChainIDsString, string targetChainIDsString);
         void setBinder(Structure* _binder);
+        void setTarget(Structure& target);
         void setTargetBindingSiteResidues(vector<Residue*> sel);
         void defineTargetBindingSiteResiduesByrSASA(mstreal relSASAthreshold = 0.05);
         
@@ -180,6 +188,8 @@ class binderScorer {
 
 class residueBackboneBinderScorer: public binderScorer {
     public:
+        residueBackboneBinderScorer(const binderScorerParams& params) : binderScorer(params), resPairSearcher(params.resPairDBPath,params.dCut,params.angleCut,params.RMSDCut) {};
+
         residueBackboneBinderScorer(const binderScorerParams& params, Structure& target) : binderScorer(params,target), resPairSearcher(params.resPairDBPath,params.dCut,params.angleCut,params.RMSDCut) {};
 
         residueBackboneBinderScorer(const binderScorerParams& params, Structure& complex, string binderChainIDsString, string targetChainIDsString) : binderScorer(params,complex,binderChainIDsString,targetChainIDsString), resPairSearcher(params.resPairDBPath,params.dCut,params.angleCut,params.RMSDCut) {};

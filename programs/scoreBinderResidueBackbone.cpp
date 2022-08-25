@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
     op.addOption("complexPDB","A PDB file defining the complex between the protein target and designed binder. The target must have a defined sequence",false);
     op.addOption("binderChains","The binder chain ID(s) delimited by '_', e.g. '0_1'. If in --targetPDB mode, will be removed from the structure before scoring",false);
     op.addOption("targetChains","--complexPDB mode only. The protein chain(s) delimited by '_', e.g. 'A_B'",false);
+    op.addOption("complexPDBList","If given, will run in complexPDB mode for multiple complexes. Argument should be followed by the path to a file where each line contains three values: [path,targetChainIDs,binderChainIDs].",false);
     op.addOption("targetPDB","A PDB file defining the structure of the protein target. Must have a defined sequence.",false);
     op.addOption("binderList","A file where each line is the path to a binder structure to be scored",false);
     op.addOption("binderBin","A seed binary file.",false);
@@ -29,17 +30,22 @@ int main(int argc, char *argv[]) {
     op.setOptions(argc,argv);
 
     if (op.isGiven("complexPDB")) {
+        cout << "complexPDB mode" << endl;
         if (!op.isGiven("targetChains") || !op.isGiven("binderChains")) MstUtils::error("If scoring a complex, must provide '--targetChains' and '--binderChains'");
+    } else if (op.isGiven("complexPDBList")) {
+        cout << "complexPDBList mode" << endl;
     } else if (op.isGiven("targetPDB")) {
+        cout << "targetPDB mode" << endl;
         if ((!op.isGiven("binderList")) && (!op.isGiven("binderBin"))) MstUtils::error("If providing apo target structure, must also provide '--binderList' or '--binderBin'");
         if (!op.isGiven("binderBin") && op.isGiven("binderBinSubset")) MstUtils::error("Can only extract a subset using --binderBinSubset if --binderBin is provided");
     } else {
-        MstUtils::error("Must provide either --complexPDB or --targetPDB");
+        MstUtils::error("Must provide either --complexPDB, --complexPDBList, or --targetPDB");
     }
 
     string resPairDB = op.getString("resPairDB");
     string contactData = op.getString("contactData");
     string complexPDB = op.getString("complexPDB","");
+    string complexPDBList = op.getString("complexPDBList","");
     string targetChainIDsString = op.getString("targetChains");
     string binderChainIDsString = op.getString("binderChains");
     string targetPDB = op.getString("targetPDB");
@@ -64,7 +70,8 @@ int main(int argc, char *argv[]) {
     params.verbose = verbose;
 
     if (complexPDB != "") {
-        augmentedStructure complex(complexPDB);
+        cout << "eh" << endl;
+        augmentedStructure complex(complexPDB,"SKIPHETERO|ALLOW ILE CD1");
         scorer = new residueBackboneBinderScorer(params,complex,binderChainIDsString,targetChainIDsString);
 
         if (!defineVDWContacts) {
@@ -78,6 +85,33 @@ int main(int argc, char *argv[]) {
         scorer->writeBinderScoresToFile();
         scorer->writeContactScoresToFile();
         scorer->writeTrainingDataToFile();
+
+    } else if (complexPDBList != "") {
+        cout << "ehh" << endl;
+        scorer = new residueBackboneBinderScorer(params);
+        vector<string> lines = MstUtils::fileToArray(complexPDBList);
+        for (string line : lines) {
+            vector<string> val = MstUtils::split(line,",");
+            if (val.size() != 3) MstUtils::error("Wrong number of values in line: "+line);
+            string complexPDBPath = val[0];
+            string targetChainIDsString = val[1];
+            string binderChainIDsString = val[2];
+            cout << complexPDBPath << " " << targetChainIDsString << " " << binderChainIDsString << endl;
+            augmentedStructure complex(complexPDBPath,"SKIPHETERO|ALLOW ILE CD1");
+            scorer->setComplex(complex,targetChainIDsString,binderChainIDsString);
+
+            if (!defineVDWContacts) {
+                scorer->defineTargetBindingSiteResiduesByrSASA();
+                scorer->defineInterfaceByPotentialContacts();
+            }
+
+            mstreal score = scorer->scoreBinder();
+            cout << "Binder score: " << score << endl;
+
+            scorer->writeBinderScoresToFile();
+            scorer->writeContactScoresToFile();
+            scorer->writeTrainingDataToFile();
+        }
 
     } else {
         // score target with multiple designed binders mode
