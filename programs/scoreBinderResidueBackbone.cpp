@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
             RotamerLibrary::extractProtein(cleanedComplex,originalComplex);
             augmentedStructure complex(cleanedComplex);
             complex.setName(MstSys::splitPath(complexPDBPath,1));
-            scorer->setComplex(complex,targetChainIDsString,binderChainIDsString);
+            scorer->setComplex(complex,binderChainIDsString,targetChainIDsString);
 
             if (!defineVDWContacts) {
                 scorer->defineTargetBindingSiteResiduesByrSASA();
