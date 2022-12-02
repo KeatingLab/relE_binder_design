@@ -56,7 +56,7 @@ void boundingBox::printBounds() {
 /* --- --- --- --- --- positionHasher --- --- --- --- --- */
 
 positionHasher::positionHasher(boundingBox _bbox, mstreal _increment) : bbox(_bbox), increment(_increment) {
-    if ((increment <= 0) || (increment > 5)) MstUtils::error("increment should be greater than 0 and less than 5","positionHasher::positionHasher()");
+    if ((increment <= 0)) MstUtils::error("increment should be greater than 0","positionHasher::positionHasher()");
     numXBins = ceil((bbox.getXWidth()) / increment);
     numYBins = ceil((bbox.getYWidth()) / increment);
     numZBins = ceil((bbox.getZWidth()) / increment);

@@ -17,6 +17,8 @@ int main(int argc, char *argv[]) {
     op.addOption("fasstDB","A path to a structure database that is compatible with FASST",true);
     op.addOption("seqConst","If provided, constrain the matches to the binding site to those with the same central amino acid");
     op.addOption("seedFlankRes","The number of residues on each side of the contacting seed residue (default 2",false);
+    op.addOption("saveToPDB","If provided, will save the target + seeds to a single multi-entry PDB file");
+    op.addOption("contactData","The path to JSON file describing the probability density of a potential contact given backbone geometry. If provided, will only store seed structures with more than 5 contacts per residue (recommended cutoff: 5 potential contacts per res)",false);
     op.setOptions(argc,argv);
 
     if (!(op.isGiven("targetPDB"))&&!(op.isGiven("complexPDB") && op.isGiven("binderChains"))) MstUtils::error("Must provide either --targetPDB or --complexPDB and --binderChains");
@@ -29,11 +31,15 @@ int main(int argc, char *argv[]) {
     bool wholeSurface = op.isGiven("wholeSurface");
     bool seqConst = op.isGiven("seqConst");
     int seedFlankRes = op.getInt("seedFlankRes",2);
+    bool saveToPDB = op.isGiven("saveToPDB");
+    string contactData = op.getString("contactData","");
 
     seedGenParams params; 
     params.maxNumMatches = numMatches;
     params.seqConst = seqConst;
     params.seedFlankRes = seedFlankRes;
+    params.writeToPDB = saveToPDB;
+    params.contactData = contactData;
 
     // generate seeds
     string binPath, targetName;

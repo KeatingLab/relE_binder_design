@@ -1,6 +1,7 @@
 #ifndef _BRIDGESEEDS_H
 #define _BRIDGESEEDS_H
 
+#include "mstfuser.h"
 #include "msttypes.h"
 
 #include "alignframes.h"
@@ -8,10 +9,20 @@
 #include "residueframe.h"
 
 class seedBridge {
+/**
+A bridge consists of three regions
+1) the region overlapping the C-terminus of seed A
+2) the unique region connecting the two seeds
+3) the region overlapping the N-terminus of seed B
+By convention, the N and C-terminal residues of the structure come from region 1 and 3
+This makes sense, since when we are trying to connect two seeds we don't have any of the connecting residues yet
+*/
+
     public:
         seedBridge() {};
         seedBridge(int _targetID, Residue* ntermR, Residue* ctermR);
 
+        void setRMSD(mstreal _rmsd) {rmsd = _rmsd;}
         void setUniqueID(int _uniqueID) {uniqueID = _uniqueID;}
         int getUniqueID();
 
@@ -23,18 +34,24 @@ class seedBridge {
         int getCtermResIdx() {return ntermResIdx+residueLength+1;}
         CartesianPoint getTerminalResidueDistances();
         int getBridgeLength() {return residueLength;}
+        mstreal getRMSD() {return rmsd;}
 
         static CartesianPoint findCADistances(Residue* ntermR, Residue* ctermR);
         static vector<Atom*> getBridgeTerminusFromStructure(Residue* ntermR, Residue* ctermR, int terminusLength = 3, bool terminusOnly = true);
 
+        bool operator<(seedBridge& other) {
+            return this->rmsd < other.getRMSD();
+        }
+
     private:
         int uniqueID = -1;
         int targetID = -1;
-        int ntermResIdx = -1;
-        int residueLength = -1; // the total number of residues in the bridge spanning the N/C-terminal residues (which are not included)
+        int ntermResIdx = -1; // N-terminal residue in the original structure
+        int residueLength = -1; // the total number of residues in the connecting region
         mstreal R1CaDistance = 0.0;
         mstreal R2CaDistance = 0.0;
         mstreal R3CaDistance = 0.0;
+        mstreal rmsd = -1.0;
 };
 
 class seedBridgeDB {
@@ -77,10 +94,20 @@ class findSeedBridge {
     public:
         findSeedBridge(string pathToBridgeDataDB) : bridgeData(pathToBridgeDataDB) {
             loadSeedBridgeDataIntoAPV();
+            info_out = new fstream;
+            MstUtils::openFile(*info_out,"RMSDMatches.csv",fstream::out);
+            *info_out << "name";
+            for (int i = 0; i <= bridgeData.getMaxBridgeLength(); i++) *info_out << "," << i;
+            *info_out << endl;
         }
         void reportAPVBoundaries();
 
-        void setSearchQuery(Structure* S1, Structure* S2);
+        ~findSeedBridge() {
+            info_out->close();
+            delete info_out;
+        }
+
+        void setSearchQuery(Structure* nTermSeed, Structure* cTermSeed, int S1CterminusResOffset = 0, int S2NterminusResOffset = 0);
 
         // The initial search is performed by comparing the distance between the CA of three terminal residues on each side
         int searchSeedsByCADistance(mstreal distanceCutoff);
@@ -90,29 +117,119 @@ class findSeedBridge {
         // The matches are then verified by performing optimal superposition and calculating RMSD (this ensures proper handedness)
         void loadStructureDB(string structureDBPath) {bridgeData.loadProteinStructures(structureDBPath);}
         int verifyMatchesBySuperposition(mstreal RMSDCutoff = 0.5);
-        vector<mstreal> getVerifiedBridgeLengthDist();
-        vector<Structure> getVerifiedBridgeStructures(int bridgeLength = -1);
+        
+        // For accessing the matches
+        vector<int> getVerifiedBridgeLengthDist(string name);
+        vector<vector<Structure*>> getVerifiedBridgeStructures();
+        // vector<Structure> getRepresentativeForEachLength();
+        Structure* getAlignedBridgeStructure(seedBridge* sB);
 
-        vector<Structure> getRepresentativeForEachLength();
+        // For storing the matches/fused bridges
+        void writeToMultiPDB(string pathToPDB, string bridgeName, int topN = -1);
+
+        seedBridgeDB bridgeData;
 
     protected:
         void loadSeedBridgeDataIntoAPV();
 
+        string getSeedBridgeName(seedBridge* sB);
+
     private:
-        seedBridgeDB bridgeData;
 
         ProximitySearch PS;
 
         // query info
         Structure* nTermSeed = nullptr;
         Structure* cTermSeed = nullptr;
+        int nTermSeedOffset = 0;
+        int cTermSeedOffset = 0;
         CartesianPoint queryDistances;
         vector<Atom*> terminalResidueBBAtoms;
 
         vector<seedBridge*> matches;
         vector<seedBridge*> verifiedMatches;
 
+        vector<vector<seedBridge*>> matchesByLength;
+
         RMSDCalculator calc;
+
+        fstream* info_out = nullptr;
+};
+
+class fuseSeedsAndBridge {
+    public:
+        fuseSeedsAndBridge(int _overlapLength) : cl(false), overlapLength(_overlapLength) {
+            bridge_out = new fstream;
+            MstUtils::openFile(*bridge_out,"bridges.pdb",fstream::out);
+            fused_out = new fstream;
+            MstUtils::openFile(*fused_out,"fused.pdb",fstream::out);
+        };
+
+        ~fuseSeedsAndBridge() {
+            if (!bridges.empty()) for (vector<Structure*> lengthNBridges : bridges) for (Structure* s : lengthNBridges) delete s;
+            bridge_out->close();
+            delete bridge_out;
+            fused_out->close();
+            delete fused_out;
+        }
+
+        void setClashCheck(Structure& S) {
+            toCheck = S;
+            clashCheck.setStructure(toCheck);
+        }
+
+        void setSeeds(Structure* _seedA, Structure* _seedB, int _seedAOffset = 0, int _seedBOffset = 0) {
+            seedA =_seedA;
+            seedB = _seedB;
+            seedAOffset = _seedAOffset;
+            seedBOffset = _seedBOffset;
+        }
+
+        void setBridgeStructures(vector<vector<Structure*>> _bridges) {
+            if (!bridges.empty()) for (vector<Structure*> lengthNBridges : bridges) for (Structure* s : lengthNBridges) delete s;
+            bridges = _bridges;
+        }
+
+        void writeFusedStructuresToPDB();
+
+        vector<Structure*> clusterBridgeStructures(vector<Structure*> lengthNBridges, int Nstructures, mstreal clusterRMSD = 1.0);
+        
+
+    protected:
+        vector<Residue*> getFragmentRes(Structure& seed, int startResIdx, int nRes) {
+            vector<Residue*> seed_res = seed.getResidues();
+            if ((startResIdx < 0)||(startResIdx>=seed_res.size())) MstUtils::error("start_residx must be in the bounds of the structure");
+            if (nRes < 0) MstUtils::error("nRes must be at least 1");
+            if (startResIdx+nRes>seed_res.size()) MstUtils::error("startResIdx + nRes must not be greater than the number of residues in the seed");
+            return vector<Residue*>(seed_res.begin()+startResIdx,seed_res.begin()+startResIdx+nRes);
+        }
+
+        vector<int> getFragResIdx(int nTermRes, int nRes) {
+            vector<int> result(nRes,0);
+            iota(result.begin(),result.end(),nTermRes);
+            return result;
+        }
+
+    private:
+        Clusterer cl;
+        Structure toCheck;
+        clashChecker clashCheck;
+
+        int overlapLength;
+
+        Structure* seedA;
+        Structure* seedB;
+        int seedAOffset;
+        int seedBOffset;
+
+        vector<vector<Structure*>> bridges;
+
+        fstream* bridge_out = nullptr;
+        fstream* fused_out = nullptr;
+
+        fusionParams params;
+        fusionOutput fuserOut;
+
 };
 
 class potentialConnectionsSeedGraph {

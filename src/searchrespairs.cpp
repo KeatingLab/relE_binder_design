@@ -90,7 +90,7 @@ int findResPairs::getNumMatchesWithResidueType(bool Ri) {
     int nMatchesWithResType = 0;
     for (resPair* rP : verifiedMatches) {
         if (Ri && (queryRP.getResIAAIndex() == rP->getResIAAIndex())) nMatchesWithResType++;
-        else if (queryRP.getResJAAIndex() == rP->getResJAAIndex()) nMatchesWithResType++;
+        if (!Ri && (queryRP.getResJAAIndex() == rP->getResJAAIndex())) nMatchesWithResType++;
     }
     return nMatchesWithResType;
 }

@@ -281,25 +281,25 @@ void binderScorer::defineInterfaceUsingVDWContacts() {
 
 void binderScorer::setBackgroundSurfaceProbabilities() {
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("ALA")] = 0.048049;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ARG")] = 0.090171;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ASN")] = 0.062437;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ASP")] = 0.095417;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("CYS")] = 0.002533;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("GLN")] = 0.070898;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ASP")] = 0.095417;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("GLU")] = 0.125364;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("PHE")] = 0.012781;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("GLY")] = 0.029287;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("HIS")] = 0.023232;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("ILE")] = 0.016676;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("LEU")] = 0.033629;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("LYS")] = 0.132090;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("LEU")] = 0.033629;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("MET")] = 0.009195;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("PHE")] = 0.048049;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("PRO")] = 0.012781;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ASN")] = 0.062437;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("PRO")] = 0.070291;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("GLN")] = 0.070898;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("ARG")] = 0.090171;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("SER")] = 0.068929;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("THR")] = 0.058319;
+    backgroundSurfaceProbabilities[SeqTools::aaToIdx("VAL")] = 0.027414;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("TRP")] = 0.006683;
     backgroundSurfaceProbabilities[SeqTools::aaToIdx("TYR")] = 0.016602;
-    backgroundSurfaceProbabilities[SeqTools::aaToIdx("VAL")] = 0.027414;
 }
 
 /* --- --- --- --- --- residueBackboneBinderScorer --- --- --- --- --- */
@@ -324,6 +324,7 @@ mstreal residueBackboneBinderScorer::scoreBinder() {
         int totalMatches = 0;
         int nativeAAMatches = 0;
         mstreal contactScore = 0.0;
+        cout << "Score: " << *contactingResidues.first << " " << *contactingResidues.second << endl;
         scoreContact(contactingResidues,totalMatches,nativeAAMatches,contactScore);
         binderScore+=contactScore;
     }
@@ -344,6 +345,15 @@ void residueBackboneBinderScorer::scoreContact(pair<Residue*,Residue*> contactin
         mstreal nativeResProbFromMatches = mstreal(nativeMatches+1)/mstreal(totalMatches+aaTypes.size());
         contactScore = -log2(nativeResProbFromMatches/backgroundSurfaceProbabilities[targetResType]);
         nMatchesAAPerContact.push_back(resPairSearcher.getNumMatchesByAAType(true));
+        // // debug
+        // vector<int> riCounts = resPairSearcher.getNumMatchesByAAType(true);
+        // vector<int> rjCounts= resPairSearcher.getNumMatchesByAAType(false);
+        // cout << "Ri: " << contactingRes.first->getName() << endl;
+        // for (int idx = 0; idx < riCounts.size(); idx++) cout << SeqTools::idxToSingle(idx) << ": " << riCounts[idx] << " ";
+        // cout << endl;
+        // cout << "Rj: " << contactingRes.second->getName() << endl;;
+        // for (int idx = 0; idx < rjCounts.size(); idx++) cout << SeqTools::idxToSingle(idx) << ": " << rjCounts[idx] << " ";
+        // cout << endl;
     } else {
         nativeMatches = 0;
         contactScore = 10.0;

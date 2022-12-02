@@ -23,8 +23,8 @@ int main(int argc, char *argv[]) {
     string contactData = op.getString("contactData");
     string complexPDBPath = op.getString("complexPDB","");
     string binderChainID = op.getString("binderChainID");
-    mstreal lowerBound = op.getReal("lowerBound");
-    mstreal upperBound = op.getReal("upperBound");
+    mstreal lowerBound = op.getReal("lowerBound",0.7);
+    mstreal upperBound = op.getReal("upperBound",1.2);
     bool defineVDWContacts = op.isGiven("vdwContacts");
 
     string fileType = (defineVDWContacts) ? "vdw" : "potential";

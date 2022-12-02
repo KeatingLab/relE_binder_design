@@ -52,3 +52,6 @@ Generate short segments of protein backbone, i.e. 'interface seeds', around the 
 ### `scoreBinder`
 
 Scores one, or many, binding structures relative to a target protein. The score is computed per interface contact and is equal to the log of the probability of the binder residue, given the target residue.
+
+# Known bugs to fix
+- FreeSASA currently crashes when presented with structures containing hydrogens (e.g. rosetta models)

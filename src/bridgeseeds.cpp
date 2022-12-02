@@ -81,6 +81,7 @@ CartesianPoint seedBridge::findCADistances(Residue* ntermR, Residue* ctermR) {
 }
 
 vector<Atom*> seedBridge::getBridgeTerminusFromStructure(Residue* ntermR, Residue* ctermR, int terminusLength, bool terminusOnly) {
+    // if (ntermR->getParent() != ctermR->getParent()) MstUtils:error("N and C-terminal residues must be from the same chain","seedBridge::getBridgeTerminusFromStructure");
     vector<Atom*> terminalResidueAtoms;
     // N-terminal residues
     Residue* R = nullptr;
@@ -89,12 +90,13 @@ vector<Atom*> seedBridge::getBridgeTerminusFromStructure(Residue* ntermR, Residu
         vector<Atom*> bbAtoms = RotamerLibrary::getBackbone(R);
         terminalResidueAtoms.insert(terminalResidueAtoms.end(),bbAtoms.begin(),bbAtoms.end());
     }
-    // Bridge residues
+    // Central bridge residues
     if (!terminusOnly) {
+        R = R->nextResidue();
         while (R != ctermR) {
-            R = R->nextResidue();
             vector<Atom*> bbAtoms = RotamerLibrary::getBackbone(R);
             terminalResidueAtoms.insert(terminalResidueAtoms.end(),bbAtoms.begin(),bbAtoms.end());
+            R = R->nextResidue();
         }
     }
     // C-terminal residues
@@ -204,14 +206,15 @@ void findSeedBridge::reportAPVBoundaries() {
     cout << "zhi: " << PS.getZHigh() << endl;
 }
 
-void findSeedBridge::setSearchQuery(Structure* S1, Structure* S2) {
-    nTermSeed = S1;
-    cTermSeed = S2;
+void findSeedBridge::setSearchQuery(Structure* nTermSeed, Structure* cTermSeed, int S1CterminusResOffset, int S2NterminusResOffset) {
     
     // define the query based on distances between the terminal residues
-    if ((S1->residueSize() < bridgeData.getTerminusLength())||(S2->residueSize() < bridgeData.getTerminusLength())) MstUtils::error("At least one of the provided structures are shorter than the terminus length ("+MstUtils::toString(bridgeData.getTerminusLength())+")","findSeedBridge::searchSeeds");
-    Residue* ntermR = &S1->getResidue(S1->residueSize()-1);
-    Residue* ctermR = &S2->getResidue(0);
+    if ((nTermSeed->residueSize() - S1CterminusResOffset < bridgeData.getTerminusLength())||(cTermSeed->residueSize() - S2NterminusResOffset < bridgeData.getTerminusLength())) 
+        MstUtils::error("Provided nTermStructure with n_residues: "+MstUtils::toString(nTermSeed->residueSize())+", offset: "+MstUtils::toString(S1CterminusResOffset)
+        +" and cTermStructure with n_residues: "+MstUtils::toString(cTermSeed->residueSize())+", offset: "+MstUtils::toString(S2NterminusResOffset)
+        +" not compatible with terminus length: "+MstUtils::toString(bridgeData.getTerminusLength())+")","findSeedBridge::searchSeeds");
+    Residue* ntermR = &nTermSeed->getResidue(nTermSeed->residueSize()-1-S1CterminusResOffset);
+    Residue* ctermR = &cTermSeed->getResidue(0+S2NterminusResOffset);
     queryDistances = seedBridge::findCADistances(ntermR,ctermR);
 
     // extract the terminal residues to make a new structure that is used when verifying by superposition
@@ -219,11 +222,12 @@ void findSeedBridge::setSearchQuery(Structure* S1, Structure* S2) {
 }
 
 int findSeedBridge::searchSeedsByCADistance(mstreal distanceCutoff) {
-    cout << "distanceCutoff used for searching: " << distanceCutoff << " Å" << endl;
+    cout << "distanceCutoff used for searching: " << distanceCutoff << " angstroms" << endl;
 
     // reset from previous search
     matches.clear();
     verifiedMatches.clear();
+    matchesByLength.clear();
 
     cout << "R1 CA distance: " << queryDistances.getX() << endl;
     cout << "R2 CA distance: " << queryDistances.getY() << endl;
@@ -271,61 +275,147 @@ void findSeedBridge::loadSeedBridgeDataIntoAPV() {
 
 int findSeedBridge::verifyMatchesBySuperposition(mstreal RMSDCutoff) {
     if (matches.empty()) MstUtils::error("Must search for matches before verifying","findSeedBridge::verifyMatchesBySuperposition");
+    verifiedMatches.clear();
+    matchesByLength.clear();
+
+    int count = 0;
     for (seedBridge* sB : matches) {
         vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
         mstreal RMSDval = calc.bestRMSD(bridgeTerminus,terminalResidueBBAtoms,true);
+        // if (count % 100 == 0) cout << "RMSDval: " << RMSDval << endl;
         if (RMSDval <= RMSDCutoff) {
+            sB->setRMSD(RMSDval);
             verifiedMatches.push_back(sB);
+            // lengthToBridge[sB->getBridgeLength()].push_back(sB);
         }
+        count++;
     }
+    // Sort by RMSD
+     std::sort(verifiedMatches.begin(),verifiedMatches.end());
+
+    // Sort matches by bridge length
+    for (seedBridge* sB : verifiedMatches) {
+        matchesByLength[sB->getBridgeLength()].push_back(sB);
+    }
+
     cout << "Verified " << verifiedMatches.size() << " bridges with RMSD < " << RMSDCutoff << " to the query" << endl;
     return verifiedMatches.size();
 }
 
-vector<mstreal> findSeedBridge::getVerifiedBridgeLengthDist() {
-    fstream info_out;
-    MstUtils::openFile(info_out,"RMSDMatches.csv",fstream::out);
-    info_out << "numBridgeResidues,numMatches" << endl;
+vector<int> findSeedBridge::getVerifiedBridgeLengthDist(string name) {
 
-    vector<int> counts(bridgeData.getMaxBridgeLength(),0);
+    vector<int> counts(bridgeData.getMaxBridgeLength()+1,0);
     vector<mstreal> pDist;
     int totalCount = 0;
     for (seedBridge* sB : verifiedMatches) {
         counts[sB->getBridgeLength()]++;
         totalCount++;
     }
+    *info_out << name;
     for (int len = 0; len <= bridgeData.getMaxBridgeLength(); len++) {
-        cout << len << "\t" << counts[len] << endl;
-        info_out << len << "," << counts[len] << endl;
-        pDist.push_back(mstreal(counts[len])/mstreal(totalCount));
+        // cout << len << "\t" << counts[len] << endl;
+        *info_out << "," << counts[len];
+        // pDist.push_back(mstreal(counts[len]));
     }
-    return pDist;
+    *info_out << endl;
+    return counts;
 }
 
-vector<Structure> findSeedBridge::getVerifiedBridgeStructures(int bridgeLength) {
-    vector<Structure> result;
+vector<vector<Structure*>> findSeedBridge::getVerifiedBridgeStructures() {
+    vector<vector<Structure*>> result(bridgeData.getMaxBridgeLength()+1,vector<Structure*>());
     for (seedBridge* sB : verifiedMatches) {
-        if ((bridgeLength == -1)||(sB->getBridgeLength() == bridgeLength)) {
-            Structure bridgeAndTerminus = bridgeData.getBridgeAndTerminusFromDB(sB);
-            vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
-            calc.align(bridgeTerminus,terminalResidueBBAtoms,bridgeAndTerminus);
-            result.push_back(bridgeAndTerminus);
-        }
+        result[sB->getBridgeLength()].push_back(getAlignedBridgeStructure(sB));
     }
     return result;
 }
 
-vector<Structure> findSeedBridge::getRepresentativeForEachLength() {
-    vector<Structure> result;
-    set<int> stored;
-    for (seedBridge* sB : verifiedMatches) {
-        if (stored.count(sB->getBridgeLength()) == 0) {
-            Structure bridgeAndTerminus = bridgeData.getBridgeAndTerminusFromDB(sB);
-            vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
-            calc.align(bridgeTerminus,terminalResidueBBAtoms,bridgeAndTerminus);
-            result.push_back(bridgeAndTerminus);
-            stored.insert(sB->getBridgeLength());
+// vector<Structure> findSeedBridge::getRepresentativeForEachLength() {
+//     vector<Structure> result;
+//     set<int> stored;
+//     for (seedBridge* sB : verifiedMatches) {
+//         if (stored.count(sB->getBridgeLength()) == 0) {
+//             Structure bridgeAndTerminus = bridgeData.getBridgeAndTerminusFromDB(sB);
+//             vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
+//             calc.align(bridgeTerminus,terminalResidueBBAtoms,bridgeAndTerminus);
+//             result.push_back(bridgeAndTerminus);
+//             stored.insert(sB->getBridgeLength());
+//         }
+//     }
+//     return result;
+// }
+
+Structure* findSeedBridge::getAlignedBridgeStructure(seedBridge* sB) {
+    Structure* bridgeAndTerminus = new Structure(bridgeData.getBridgeAndTerminusFromDB(sB));
+    vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
+    calc.align(bridgeTerminus,terminalResidueBBAtoms,*bridgeAndTerminus);
+    return bridgeAndTerminus;
+}
+
+void findSeedBridge::writeToMultiPDB(string pathToPDB, string bridgeName, int topN) {
+    fstream pdb_out;
+    MstUtils::openFile(pdb_out,pathToPDB,fstream::out);
+    for (int len = 0; len < matchesByLength.size(); len++) {
+        int N = 0;
+        for (seedBridge* sB : matchesByLength[len]) {
+            N++;
+            if ((topN != -1)&&(N >= topN)) continue;
+            Structure* bridgeAndTerminus = getAlignedBridgeStructure(sB);
+            pdb_out << "HEADER    " << bridgeName << "_" << sB->getBridgeLength() << "_" << sB->getUniqueID() << endl;
+            bridgeAndTerminus->writePDB(pdb_out);
         }
     }
-    return result;
+}
+
+/* --- --- --- --- --- fuseSeedsAndBridge --- --- --- --- --- */
+
+void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
+
+    // For each bridge length, cluster, and fuse the representative to the seeds
+    for (int lenN = 0; lenN < bridges.size(); lenN++) {
+        vector<Structure*>& lengthNBridges = bridges[lenN];
+        if (lengthNBridges.empty()) continue;
+        vector<Structure*> clusterReps = clusterBridgeStructures(lengthNBridges,1000,0.75);
+        cout << "After clustering, found " << clusterReps.size() << " clusters for bridges of length " << lenN << endl;
+        int bridgeN = 0;
+        for (Structure* selectedBridge : clusterReps) {
+            bridgeN++;
+            // check if clashes with the target
+            if ((clashCheck.isStructureSet())&&(clashCheck.checkForClashesToStructure(selectedBridge->getResidues()))) {
+                cout << "Bridge " << bridgeN << " clashes and will be discarded" << endl;
+                continue;
+            }
+            string name = "bridge_"+seedA->getName()+"_"+MstUtils::toString(seedAOffset)+"_"+MstUtils::toString(lenN)+"_"+MstUtils::toString(seedBOffset)+"_"+seedB->getName()+"_"+MstUtils::toString(bridgeN);
+            *bridge_out << "HEADER    " << name << endl;
+            selectedBridge->writePDB(*bridge_out);
+
+            // Fuse seeds + bridge and store
+            fusionTopology topology(seedA->residueSize()-seedAOffset+seedB->residueSize()-seedBOffset+lenN);
+
+            vector<Residue*> seedA_res = getFragmentRes(*seedA,0,seedA->residueSize()-seedAOffset);
+            topology.addFragment(seedA_res,getFragResIdx(0,seedA->residueSize()-seedAOffset));
+
+            topology.addFragment(*selectedBridge,getFragResIdx(seedA->residueSize()-seedAOffset-overlapLength,selectedBridge->residueSize()));
+
+            vector<Residue*> seedB_res = getFragmentRes(*seedB,seedBOffset,seedB->residueSize()-seedBOffset);
+            topology.addFragment(seedB_res,getFragResIdx(seedA->residueSize()-seedAOffset+lenN,seedB->residueSize()-seedBOffset));
+            Structure fusedS = Fuser::fuse(topology,fuserOut,params);
+            *fused_out << "HEADER    " << name << endl;
+            fusedS.writePDB(*fused_out);
+            bridgeN++;
+        }
+    }
+}
+
+vector<Structure*> fuseSeedsAndBridge::clusterBridgeStructures(vector<Structure*> lengthNBridges, int Nstructures, mstreal clusterRMSD) {
+    vector<vector<Atom*>> bridgeAtoms;
+    int count = 1;
+    for (Structure* s : lengthNBridges) {
+        if (count > Nstructures) break;
+        bridgeAtoms.push_back(s->getAtoms());
+        count++;
+    }
+    vector<vector<int>> clusters = cl.greedyCluster(bridgeAtoms,clusterRMSD);
+    vector<Structure*> clusterReps;
+    for (int i = 0; i < clusters.size(); i++) clusterReps.push_back(lengthNBridges[clusters[i][0]]);
+    return clusterReps;
 }

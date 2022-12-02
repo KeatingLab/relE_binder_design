@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
     op.addOption("seedBin","Path to seed binary file. In read mode, will load this file. In write mode will either A) load the file, if one already exists or B) create a new one",true);
     op.addOption("structureName","The name of a structure. In read mode this will be extracted. In write mode this will be interpreted as a PDB file path and added to the binary file",false);
     op.addOption("structureList","The path to a file where each line is the name of a structure. In read mode each structure will be extracted from the binary file. In write mode each structure will be loaded and added to the file",false);
+    op.addOption("sequenceList","The path to a file where each line is the sequence of the seed. In read mode each sequence will be threaded onto the seed before it is extracted from the binary file. In write mode each structure will be loaded, the sequence will be set, and it will be added to the file",false);
     op.addOption("targetPDB","Path to a PDB structure (read-mode only). If provided, will combine each structure from the binary file with this target structure (useful if they form a complex)",false);
     op.setOptions(argc,argv);
         
@@ -21,9 +22,11 @@ int main(int argc, char *argv[]) {
     string seedBinPath = op.getString("seedBin");
     string structureName = op.getString("structureName","");
     string structureListPath = op.getString("structureList","");
+    string sequenceListPath = op.getString("sequenceList","");
     string targetPDBPath = op.getString("targetPDB","");
 
     if ((!op.isGiven("structureName"))&(!op.isGiven("structureList"))) MstUtils::error("Must provide the name of structure, or a list of names");
+    if (op.isGiven("sequenceList")&!op.isGiven("structureList")) MstUtils::error("If sequence list is provided, must also provide structure list");
     if (!read_mode && op.isGiven("targetPDB")) MstUtils::error("--targetPDB not compatible with write mode");
 
     if (read_mode) {
@@ -51,8 +54,20 @@ int main(int argc, char *argv[]) {
 
         if (structureListPath != "") {
             vector<string> structureList = MstUtils::fileToArray(structureListPath);
-            for (string structureName : structureList) {
+            vector<string> sequenceList = (sequenceListPath != "") ? MstUtils::fileToArray(sequenceListPath) : vector<string>();
+            for (int i = 0; i < structureList.size(); i++) {
+                string structureName = structureList[i];
+                string sequence = (!sequenceList.empty()) ? sequenceList[i] : "";
                 Structure* seed = seedBin.getStructureNamed(structureName);
+                if (sequence != "") {
+                    if (sequence.size() != seed->residueSize()) {
+                        cout << "sequence: " << sequence.size() << " seed residues: " << seed->residueSize() << endl;
+                        MstUtils::error("Number of residues in provided sequence does not match seed");
+                    }
+                    for (int residx = 0; residx < sequence.size(); residx++) {
+                        seed->getResidue(residx).setName(SeqTools::singleToTriple(sequence.substr(residx,1)));
+                    }
+                }
                 for (Chain* C : targetChains) {
                     Chain* Ccopy = new Chain(*C);
                     seed->appendChain(Ccopy);
@@ -80,6 +95,8 @@ int main(int argc, char *argv[]) {
 
         if (structureListPath != "") {
             vector<string> structureList = MstUtils::fileToArray(structureListPath);
+            vector<string> sequenceList = (sequenceListPath != "") ? MstUtils::fileToArray(sequenceListPath) : vector<string>();
+            if (!sequenceList.empty()) MstUtils::error("Not yet implemented");
             cout << "Adding "<< structureList.size() <<" structures" << endl;
             for (string structureName : structureList) {
                 Structure seed(structureName);

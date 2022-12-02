@@ -53,6 +53,8 @@ public:
         PS = new ProximitySearch(atoms,2.0);
     }
 
+    bool isStructureSet() {return !atoms.empty();}
+
     bool checkForClashesToStructure(vector<Residue*> queryRes) {
         if (PS == nullptr) MstUtils::error("Must first provide structure to check","clashChecker::checkForClashesToStructure");
         for (Residue* R : queryRes) {

@@ -36,6 +36,7 @@ public:
     void skip();
     void reset();
     Structure * getStructureNamed(string name);
+    vector<Structure*> getStructuresNamed(vector<string> names);
     
     /*
      Finds the position of each structure section in the file
@@ -78,12 +79,38 @@ private:
     vector<string> _structureNames;
 };
 
+class multiEntryPDB {
+    public:
+        multiEntryPDB(string filePath) : _filePath(filePath) {
+            MstUtils::openFile(fs,_filePath,fstream::out);
+        }
+
+        ~multiEntryPDB() {
+            fs.close();
+        }
+
+        void writeToFile(const Structure &S, string name = "") {
+            fs << "HEADER    ";
+            if (name == "") fs << S.getName() << endl;
+            else fs << name << endl;
+            S.writePDB(fs);
+        }
+
+    private:
+        string _filePath;
+        
+        fstream fs;
+};
+
 struct seedGenParams {
     int targetFlankRes = 1;
     int maxNumMatches = 1000;
     mstreal RMSDCutoff = 0.5;
     bool seqConst = true;
     int seedFlankRes = 2;
+    bool writeToPDB = false;
+    string contactData = "";
+    mstreal minContsPerRes = 4.0; // potential contacts per seed res
 };
 
 class seedGenerator {
@@ -133,7 +160,7 @@ class seedGenerator {
 
         void findStructuralMatches();
 
-        void generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& fragOut, fstream& seedOut);
+        void generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& fragOut, fstream& seedOut, multiEntryPDB* pdbOut = nullptr);
 
         bool seedTargetClash(Structure* seed);
 
@@ -143,6 +170,8 @@ class seedGenerator {
         vector<Atom*> targetBackboneAtoms = {}; // All atoms of core residues and all backbone atoms of surface residues
         ProximitySearch targetAtomsPS;
         checkVDWRadii checker;
+
+        potentialContacts potConts;
 
         vector<Residue*> bindingSite = {};
 

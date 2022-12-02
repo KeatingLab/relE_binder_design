@@ -65,6 +65,12 @@ Structure *seedBinaryFile::getStructureNamed(string name) {
     return readNextFileSection(false).first;
 }
 
+vector<Structure*> seedBinaryFile::getStructuresNamed(vector<string> names) {
+    vector<Structure*> seeds;
+    for (string name: names) seeds.push_back(getStructureNamed(name));
+    return seeds;
+}
+
 void seedBinaryFile::jumpToStructureIndex(int idx) {
     if (!readMode) MstUtils::error("jumpToStructureIndex not supported in write mode","seedBinaryFile::jumpToStructureIndex");
     if (_structureNames.size() == 0) {
@@ -146,11 +152,18 @@ seedGenerator::seedGenerator(const Structure& _target, string fasstDBPath, seedG
     }
     targetAtomsPS = ProximitySearch(AtomPointerVector(targetBackboneAtoms),1.5);
 
+    if (params.contactData != "") {
+        potConts.load2DProbabilityDensities(params.contactData);
+        potConts.setTargetResidues(target.getResidues());
+    }
+
     cout << "Load FASSTDB (" << fasstDBPath << ") without sidechains" << endl;
     timer.start();
     F.readDatabase(fasstDBPath,1);
     timer.stop();
     cout << "Done took " << timer.getDuration() << " seconds to load DB" << endl;
+
+    // set 
 }
 
 void seedGenerator::defineBindingSiteAsSurfaceRes(mstreal rSASAthresh) {
@@ -179,6 +192,11 @@ string seedGenerator::generateSeeds() {
     fragOut << "fragName,cenResIdx,chainID,resNum,numMatches,numSeeds" << endl;
     MstUtils::openFile(seedOut,targetName+"_seeds.csv",fstream::out);
     seedOut << "seedName,numRes" << endl;
+    multiEntryPDB* pdbOut = nullptr;
+    if (params.writeToPDB) {
+        pdbOut = new multiEntryPDB(targetName+".seeds.pdb");
+        pdbOut->writeToFile(target,targetName+"_target");
+    }
 
     // define a fragment around each binding site residue
     getBindingSiteFragments();
@@ -188,7 +206,7 @@ string seedGenerator::generateSeeds() {
     findStructuralMatches();
 
     // generate seed(s) from each match, if possible
-    generateSeedsFromMatches(seedBin,fragOut,seedOut);
+    generateSeedsFromMatches(seedBin,fragOut,seedOut,pdbOut);
 
     fragOut.close(); seedOut.close();
     return seedBinPath;
@@ -245,8 +263,9 @@ void seedGenerator::findStructuralMatches() {
     }
 }
 
-void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& fragOut, fstream& seedOut) {
+void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& fragOut, fstream& seedOut, multiEntryPDB* pdbOut) {
     for (fragmentData& fD: allFragmentsData) {
+        cout << "Generate seeds from fragment: " << fD.getName() << endl;
         int seedCount = 0;
         for (fasstSolution sol : fD.matches) {
             // get residues contacting the central residue of the match
@@ -284,7 +303,9 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
                     Residue* targetR = &target->getResidue(i);
                     if (!RotamerLibrary::hasFullBackbone(targetR)) MstUtils::error("Residue "+MstUtils::toString(targetR->getResidueIndex())+" from target PDB "+MstUtils::toString(sol.getTargetIndex())+" is missing a backbone atom","seedGenerator::generateSeedsFromMatches");
                     Residue* Rcopy = new Residue(target->getResidue(i));
+                    Rcopy->setIcode(' ');
                     Rcopy->setNum(resNum);
+                    if (!SeqToolsExtension::AAinSet(Rcopy->getName())) Rcopy->setName("ALA");
                     seedChain->appendResidue(Rcopy);
                     resNum++;
                 }
@@ -308,10 +329,22 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
 
             // store
             for (Structure* seed : transformedSeeds) {
+                if ((params.contactData != "")&&(params.minContsPerRes > 0)) {
+                    potConts.setBinderResidues(seed->getResidues());
+                    potConts.getContacts();
+                    int nConts = potConts.getNumContacts();
+                    mstreal contsPerRes = mstreal(nConts)/mstreal(seed->residueSize());
+                    if (contsPerRes < params.minContsPerRes) {
+                        delete seed;
+                        continue;
+                    } 
+                }
                 seedBin.appendStructure(seed);
                 seedOut << seed->getName() << "," << seed->residueSize() << endl;
-                delete seed;
 
+                if (pdbOut != nullptr) pdbOut->writeToFile(*seed);
+
+                delete seed;
                 seedCount++;
             }
         }

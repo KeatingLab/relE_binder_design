@@ -745,7 +745,7 @@ set<Residue*> potentialContacts::getContactsWithResidue(Residue* R) {
 
 vector<pair<Residue*,Residue*>> potentialContacts::getContacts(bool simpleDistanceCheck) {
     if (targetResidues.empty() || binderResidues.empty()) MstUtils::error("Must define target and binder residues before searching for potential contacts","potentialContacts::getContacts");
-    cout << "Find contacts mode simple? " << simpleDistanceCheck << endl;
+    // cout << "Find contacts mode simple? " << simpleDistanceCheck << endl;
     // vector<pair<Residue*,Residue*>> contacts;
     for (Atom* targetA : targetCA) {
         CartesianPoint targetCoor = targetA->getCoor();
