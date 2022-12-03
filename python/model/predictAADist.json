@@ -1,0 +1,17 @@
+{
+    "input":{
+        "distances":true,
+        "cBvectors":false
+    },
+    
+    "encoding":{
+        "nRBF":12
+    },
+    
+    "model":{
+        "nLinLayer":1,
+        "nNodes":64
+    },
+
+    "output":"aminoAcidProbability"
+}
