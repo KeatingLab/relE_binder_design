@@ -14,6 +14,8 @@ int main(int argc, char *argv[]) {
     op.addOption("db","Path to protein structure database",false);
     op.addOption("pdb","Path to protein structure",false);
     op.addOption("resPair","If provided, will create a residue pair database instead of a mobile frame database",false);
+    op.addOption("flankingRes","If provided, will also store pairs of residues within this many number of residues in the chain (default = -1)",false);
+    op.addOption("flankingResSubsample","If provided, will subsample flanking residues at the provided rate (default = -1)",false);
     op.addOption("out","File name prefix",false);
     op.addOption("sample","Sample interacting residues at the specified rate",false);
     op.addOption("verbose","If provided, write the name of each pair of residues that was found to contact to stdout",false);
@@ -36,8 +38,10 @@ int main(int argc, char *argv[]) {
     if (!op.isGiven("resPair")) DBPath = op.getString("out") + ".frames.db";
     else DBPath = op.getString("out") + ".respairs.db";
     mstreal sampleRate = op.getReal("sample",0.0001);
+    int flankingRes = op.getInt("flankingRes",-1);
+    mstreal flankingResSubsampleRate = op.getReal("flankingResSubsampleRate",-1.0);
 
-    alignInteractingFrames alignF(proteinDBPath,op.isGiven("verbose"));
+    alignInteractingFrames alignF(proteinDBPath,op.isGiven("verbose"),flankingRes,flankingResSubsampleRate);
     bool read = false;
     if (!op.isGiven("resPair")) {
         frameDB* frameBin = new frameDB(DBPath,read);

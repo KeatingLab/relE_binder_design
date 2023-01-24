@@ -138,6 +138,10 @@ void alignInteractingFrames::setAA(string resName) {
 }
 
 void alignInteractingFrames::findMobileFrames() {
+    if (subsample_flanking > 0) {
+        cout << "Flanking residue subsample rate set to " << subsample_flanking << endl;
+        MstUtils::seedRandEngine(42);
+    }
     if (aa == SeqTools::unknownIdx())
         MstUtils::error("Must set amino acid before finding interacting residues", "alignInteractingFrames::findInteractingRes");
     allInteractingFrames.clear();
@@ -147,15 +151,36 @@ void alignInteractingFrames::findMobileFrames() {
     for (int i = 0; i <= 30; i++) interactionDataForAA[i] = 0;
     for (int target_idx = 0; target_idx < db.numTargets(); target_idx++) {
         const augmentedStructure& aS = db.getTarget(target_idx);
+        if (verbose) cout << "target " << target_idx << " has " << aS.residueSize() << " residues and " << aS.chainSize() << " chains" << endl;
         for (int res_i = 0; res_i < aS.residueSize(); res_i++) {
             Residue* Ri = &aS.getResidue(res_i);
             res_t res_i_aa = SeqTools::aaToIdx(Ri->getName());
             if (res_i_aa != aa) {
                 continue;
             }
-            const set<int> &interacting_res = db.getContacts(target_idx,res_i);
-            interactionDataForAA[interacting_res.size()]++;
-            for (int res_j : interacting_res) {
+
+            // Find residues that contact res_i
+            const set<int> &contacting_res = db.getContacts(target_idx,res_i);
+            interactionDataForAA[contacting_res.size()]++;
+            for (int res_j : contacting_res) {
+                Residue* Rj = &aS.getResidue(res_j);
+                allInteractingRes.emplace_back(Ri,Rj,target_idx);
+                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, aa);
+                residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
+                Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
+                rFi_to_ref.apply(*frame);
+                allInteractingFrames.push_back(frame);
+                if (verbose) cout << target_idx << "," << res_i << "," << res_j << endl;
+            }
+
+            // Find residues that are proximal to res_i in the chain
+            if (flanking_res <= 0) continue;
+            int chain_start_res_idx = res_i - Ri->getResidueIndexInChain();
+            int chain_stop_res_idx = chain_start_res_idx + Ri->getChain()->residueSize() - 1;
+            if (verbose) cout << "chain start: " << chain_start_res_idx << " chain stop: " << chain_stop_res_idx << endl;
+            for (int res_j = max(chain_start_res_idx,res_i - flanking_res); res_j <= min(chain_stop_res_idx,res_i + flanking_res); res_j++) {
+                // randomly skip some flanking residues in order to keep the total number from exploding
+                if (subsample_flanking >= 0) if (MstUtils::randUnit() > subsample_flanking) continue;
                 Residue* Rj = &aS.getResidue(res_j);
                 allInteractingRes.emplace_back(Ri,Rj,target_idx);
                 mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, aa);

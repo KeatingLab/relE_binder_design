@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
 
                 scorer->writeBinderScoresToFile();
                 scorer->writeContactScoresToFile();
-                scorer->writeTrainingDataToFile();
+                // scorer->writeTrainingDataToFile();
 
                 count++;
             }
@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
 
                     scorer->writeBinderScoresToFile();
                     scorer->writeContactScoresToFile();
-                    scorer->writeTrainingDataToFile();
+                    // scorer->writeTrainingDataToFile();
 
                     seed->writePDB(pdbFilePrefix+seed->getName()+".pdb");
 
@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
 
                     scorer->writeBinderScoresToFile();
                     scorer->writeContactScoresToFile();
-                    scorer->writeTrainingDataToFile();
+                    // scorer->writeTrainingDataToFile();
 
                     delete seed;
                 }   

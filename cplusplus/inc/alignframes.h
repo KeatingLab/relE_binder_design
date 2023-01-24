@@ -92,14 +92,18 @@ private:
 class alignInteractingFrames
 {
 public:
-    alignInteractingFrames(bool _verbose = false) : verbose(_verbose) {};
+    alignInteractingFrames(bool _verbose = false, int _flanking_res = -1, mstreal _subsample_flanking = 0.1) : verbose(_verbose), flanking_res(_flanking_res), subsample_flanking(_subsample_flanking) {};
     
     /**
      * @brief Construct a new align Frames object by reading augmented structures from DB
      * 
      * @param dbPath path to the augmented structures DB
      */
-    alignInteractingFrames(string dbPath, bool _verbose = false) : db(dbPath), refFrame(Frame()), verbose(_verbose) {}
+    alignInteractingFrames(string dbPath, bool _verbose = false, int _flanking_res = -1, mstreal _subsample_flanking = 0.1) : db(dbPath), refFrame(Frame()), verbose(_verbose), flanking_res(_flanking_res), subsample_flanking(_subsample_flanking) {
+        if (flanking_res >= 0 ) cout << "Warning: if flanking_res does not match the value used when defining VDW contacts in the structure database (originally 8), then some residue pairs could be double counted" << endl;
+        cout << "Flanking residues: " << flanking_res << endl;
+        cout << "Flanking residue subsample rate: " << subsample_flanking << endl; 
+    }
     
     ~alignInteractingFrames() {
         for (mobileFrame* frame : allInteractingFrames) delete frame;
@@ -144,6 +148,8 @@ private:
     augmentedStructureDB db;
     int windowSize = 30;
     mstreal homologyThreshold = 0.6;
+    int flanking_res; // if greater than 0, will automatically include flanking residues in the chain
+    mstreal subsample_flanking; // If greater than 0, will randomly subsample flanking residues to reduce memory footprint
     bool verbose;
 
     map<string, string> aaConversions;

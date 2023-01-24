@@ -98,6 +98,16 @@ class MiscTools {
             return allBackboneAtoms;
         }
 
+        static vector<Atom*> getBackboneCaAtoms(vector<Residue*> residues) {
+            vector<Atom*> backboneCaAtoms;
+            for (Residue* R : residues) {
+                if (!RotamerLibrary::hasFullBackbone(R)) MstUtils::error("All residues in chain must have full backbones","MiscTools::getBackboneAtoms");
+                vector<Atom*> backboneAtoms = RotamerLibrary::getBackbone(R);
+                for (Atom* A : backboneAtoms) if (RotamerLibrary::backboneAtomType(A) == 1) backboneCaAtoms.push_back(A); // CA defined as 1 in mstrotlib.h
+            }
+            return backboneCaAtoms;
+        }
+
         struct alignment {
             mstreal rmsd = std::numeric_limits<double>::max();
             int CiResIdx = -1;

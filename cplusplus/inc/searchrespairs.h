@@ -62,7 +62,7 @@ class distance3AngleTable {
 
 class findResPairs {
     public:
-        findResPairs(string resPairDBPath, mstreal _dCut = 0.5, mstreal _angleCut = 30, mstreal _rmsdCut = 0.5);
+        findResPairs(string resPairDBPath, mstreal _dCut = 0.25, mstreal _angleCut = 30, mstreal _rmsdCut = 0.25);
 
         ~findResPairs() {
             for (resPair* rP : allResPairs) delete rP;
@@ -100,6 +100,118 @@ class findResPairs {
         vector<resPair*> verifiedMatches;
 
         RMSDCalculator calc;
+};
+
+class findkNNResPairs {
+    public:
+        findkNNResPairs(string resPairDBPath, int _k = 30, bool _noSearch = false) : resPairSearcher(resPairDBPath,0.75,30,0.25), k_max(_k), noSearch(_noSearch) {;}
+
+        void setStructure(Structure* _S) {
+            k = k_max; // reset to original value
+            if (_S->residueSize() < k) {
+                if (_S->residueSize() < 2) MstUtils::error("Structure must have at least 2 residues");
+                k = _S->residueSize();
+                cout << "Warning: structure has less than 30 residues, k will temporary be decreased to " << k << endl;
+                // MstUtils::error("Structure must have at least 30 residues");
+            }
+            S = _S;
+            resCa = AtomPointerVector(MiscTools::getBackboneCaAtoms(S->getResidues()));
+            PS = ProximitySearch(resCa,5.0);
+            kNN.clear();
+            kNN_to_matches.clear();
+        }
+
+        set<pair<Residue*,Residue*>> findkNN() {
+            set<pair<Residue*,Residue*>> allNeighbors;
+            for (Residue* Ri : S->getResidues()) {
+                vector<Residue*> NN = findkNN(Ri);
+                for (Residue* Rj : NN) {
+                    if (Ri == Rj) continue;
+                    pair<Residue*,Residue*> res_pair = Ri->getResidueIndex() <= Rj->getResidueIndex() ? pair<Residue*,Residue*>(Ri,Rj) : pair<Residue*,Residue*>(Rj,Ri);
+                    allNeighbors.insert(res_pair);
+                }
+            }
+            kNN = allNeighbors;
+            cout << "Found " << kNN.size() << " neighbors" << endl;
+            return allNeighbors;
+        }
+
+        void searchkNN() {
+            if (kNN.empty()) MstUtils::error("Cannot search for matches until neighbors have been defined");
+            for (pair<Residue*,Residue*> pair : kNN) {
+                Residue* Ri = pair.first;
+                Residue* Rj = pair.second;
+
+                resPairSearcher.setQuery(Ri,Rj);
+                int n_matches;
+                if (noSearch) {
+                    n_matches = 0;
+                } else {
+                    n_matches = resPairSearcher.searchForMatches();
+                }
+                kNN_to_matches[pair] = n_matches;
+            }
+        }
+
+        void writeToFile() {
+            fstream out;
+            MstUtils::openFile(out,S->getName()+"_respair_matches.csv",fstream::out);
+            out << "Ri_resIdx,Ri_chainID,Ri_resnum,Rj_resIdx,Rj_chainID,Rj_resnum,Ca_distance,n_matches" << endl;
+            for (pair<Residue*,Residue*> pair : kNN) {
+                Residue* Ri = pair.first;
+                Residue* Rj = pair.second;
+
+                out << Ri->getResidueIndex() << "," << Ri->getChainID() << "," << Ri->getNum() << ",";
+                out << Rj->getResidueIndex() << "," << Rj->getChainID() << "," << Rj->getNum() << ",";
+                out << Ri->findAtom("CA")->getCoor().distance(Rj->findAtom("CA")->getCoor()) << ",";
+                out << kNN_to_matches[pair] << endl;
+            }
+        }
+
+    protected:
+        vector<Residue*> findkNN(Residue* R) {
+            vector<Residue*> NN;
+
+            // Search until we find 30 or more neighbors
+            Atom* Ca = R->findAtom("CA");
+            CartesianPoint Ca_coord = Ca->getCoor(); 
+            vector<int> neighbors;
+            mstreal radius = 10.0;
+            while (neighbors.size() < k) {
+                neighbors = PS.getPointsWithin(Ca_coord,0,radius);
+                radius+=5.0;
+            }
+
+            // Sort by distance
+            std::sort(neighbors.begin(),neighbors.end(),
+                [this,Ca_coord](int i, int j)
+            {
+                return this->resCa[i]->getCoor().distance(Ca_coord) < this->resCa[j]->getCoor().distance(Ca_coord);
+            });
+
+            for (int atom : neighbors) {
+                Residue* neighbor_residue = resCa[atom]->getParent();
+                // cout << neighbor_residue->getChainID() << neighbor_residue->getNum() << endl;
+                // cout << "distance: " << resCa[atom]->getCoor().distance(Ca_coord) << endl;
+                NN.push_back(neighbor_residue);
+                if (NN.size() >= k) break;
+            }
+            return NN;
+        }
+
+    private:
+        int k_max = 30; //includes self
+        int k = k_max;
+        bool noSearch = false;
+
+        findResPairs resPairSearcher;
+
+        Structure* S = nullptr;
+        ProximitySearch PS;
+        AtomPointerVector resCa;
+
+        set<pair<Residue*,Residue*>> kNN; //does not include duplicates. residues sorted: res i < res j
+        map<pair<Residue*,Residue*>,int> kNN_to_matches;
 };
 
 #endif
