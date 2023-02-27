@@ -142,30 +142,38 @@ void alignInteractingFrames::findMobileFrames() {
         cout << "Flanking residue subsample rate set to " << subsample_flanking << endl;
         MstUtils::seedRandEngine(42);
     }
-    if (aa == SeqTools::unknownIdx())
-        MstUtils::error("Must set amino acid before finding interacting residues", "alignInteractingFrames::findInteractingRes");
+    // if (aa == SeqTools::unknownIdx())
+    //     MstUtils::error("Must set amino acid before finding interacting residues", "alignInteractingFrames::findInteractingRes");
     allInteractingFrames.clear();
     allInteractingRes.clear();
-    interactionData[aa] = map<int,int>();
-    map<int,int>& interactionDataForAA = interactionData[aa];
-    for (int i = 0; i <= 30; i++) interactionDataForAA[i] = 0;
+    // interactionData[aa] = map<int,int>();
+    // map<int,int>& interactionDataForAA = interactionData[aa];
+    // for (int i = 0; i <= 30; i++) interactionDataForAA[i] = 0;
     for (int target_idx = 0; target_idx < db.numTargets(); target_idx++) {
         const augmentedStructure& aS = db.getTarget(target_idx);
+        PC->setTargetResidues(aS.getResidues());
+        PC->setBinderResidues(aS.getResidues());
         if (verbose) cout << "target " << target_idx << " has " << aS.residueSize() << " residues and " << aS.chainSize() << " chains" << endl;
         for (int res_i = 0; res_i < aS.residueSize(); res_i++) {
             Residue* Ri = &aS.getResidue(res_i);
             res_t res_i_aa = SeqTools::aaToIdx(Ri->getName());
-            if (res_i_aa != aa) {
+            if ((aa != SeqTools::unknownIdx())&(res_i_aa != aa)) {
                 continue;
             }
 
             // Find residues that contact res_i
-            const set<int> &contacting_res = db.getContacts(target_idx,res_i);
-            interactionDataForAA[contacting_res.size()]++;
+            set<int> contacting_res;
+            if (PC == nullptr) {
+                contacting_res = db.getContacts(target_idx,res_i);
+            } else {
+                const set<Residue*> contacting_res_pointers = PC->getContactsWithResidue(Ri);
+                for (Residue* R : contacting_res_pointers) contacting_res.insert(R->getResidueIndex());
+            }
+            // interactionDataForAA[contacting_res.size()]++;
             for (int res_j : contacting_res) {
                 Residue* Rj = &aS.getResidue(res_j);
                 allInteractingRes.emplace_back(Ri,Rj,target_idx);
-                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, aa);
+                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, res_i_aa);
                 residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
                 Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
                 rFi_to_ref.apply(*frame);
@@ -183,7 +191,7 @@ void alignInteractingFrames::findMobileFrames() {
                 if (subsample_flanking >= 0) if (MstUtils::randUnit() > subsample_flanking) continue;
                 Residue* Rj = &aS.getResidue(res_j);
                 allInteractingRes.emplace_back(Ri,Rj,target_idx);
-                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, aa);
+                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, res_i_aa);
                 residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
                 Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
                 rFi_to_ref.apply(*frame);

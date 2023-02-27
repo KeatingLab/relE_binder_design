@@ -17,6 +17,7 @@ class seedPairDistributor {
             if (seedbinpath != "") {
                 seedbin = new seedBinaryFile(seedbinpath);
                 seedbin->scanFilePositions();
+                cout << seedbin->structureCount() << " structures in binary file" << endl;
             }
         }
 
@@ -60,18 +61,22 @@ class seedPairDistributor {
 
     bool hasNext() {
         // Batch is done when we've iterated over all 
-        return ((group_a_current_index<group_a_max_index)&(group_b_current_index<group_b_max_index));
+        return ((group_a_current_index<group_a_max_index)|(group_b_current_index<group_b_max_index));
     }
 
     pair<Structure*,Structure*> next() {
         if ((group_a_current_index == -1)|(group_b_current_index == -1)) {
             // we round up when determining the batch size, so the final batch is smaller
+
+            // There are A x B jobs total (imagine a grid). We use the worker ID and batch size to get our index in the total number of 
+            // jobs (which is some value less than A * B - 1). We convert this into a position in the grid, e.g., we get the row/column
+            // of A and B respectively
             int batch_size = batchSize();
-            group_a_current_index = int(workerID * batch_size) / seed_group_a.size();
-            group_b_current_index = int(workerID * batch_size) % seed_group_b.size();
-            group_a_min_index = group_a_current_index;
-            group_b_min_index = group_b_current_index;
-            group_a_max_index = min(int(((workerID + 1) * batch_size) / seed_group_a.size()),int(seed_group_a.size()));
+            group_a_current_index = int(workerID * batch_size / seed_group_b.size());
+            group_b_current_index = int(workerID * batch_size % seed_group_b.size());
+            // group_a_min_index = group_a_current_index;
+            // group_b_min_index = group_b_current_index;
+            group_a_max_index = min(int(((workerID + 1) * batch_size) / seed_group_b.size()),int(seed_group_a.size()));
             group_b_max_index = min(int(((workerID + 1) * batch_size) % seed_group_b.size()),int(seed_group_b.size()));
         }
         pair<Structure*,Structure*> result(seed_group_a[group_a_current_index],seed_group_b[group_b_current_index]);
@@ -85,7 +90,7 @@ class seedPairDistributor {
     }
 
     int batchSize() {
-        return ceil(mstreal(seed_group_a.size() * seed_group_b.size()) / nWorkers);
+        return ceil(mstreal(seed_group_a.size() * seed_group_b.size()) / mstreal(nWorkers));
     }
 
     private:
@@ -108,6 +113,10 @@ class seedPairDistributor {
         set<Structure*> all_loaded_seeds;
         
 };
+
+string seedPathToName(string seed) {
+    return MstSys::splitPath(seed,1);
+}
 
 int main (int argc, char *argv[]) {
     MstOptions op;
@@ -147,12 +156,12 @@ int main (int argc, char *argv[]) {
     // if ((minimumSeedLength != 0)&(minimumSeedLength < overlapLength)) MstUtils::error("Minimum seed length :"+MstUtils::toString(minimumSeedLength)+" must be at least as great as overlap length: "+MstUtils::toString(overlapLength));
     if ((seedListPath != "")&(seedBinPath=="")) MstUtils::error("If a seed list provided, a seed binary file must also be provided");
 
-    // Load the seeds from the binary file
-    seedBinaryFile* seeds = nullptr;
-    if (seedBinPath != "") {
-        seeds = new seedBinaryFile(seedBinPath);
-        seeds->scanFilePositions();
-    }
+    // // Load the seeds from the binary file
+    // seedBinaryFile* seeds = nullptr;
+    // if (seedBinPath != "") {
+    //     seeds = new seedBinaryFile(seedBinPath);
+    //     seeds->scanFilePositions();
+    // }
     
     // Load the bridge distances/structures from which the distances were calculated
     findSeedBridge bridgeFinder(op.getString("bridgeDB"),MstUtils::toString(workerID));
@@ -166,10 +175,14 @@ int main (int argc, char *argv[]) {
         seedPairs.setSeeds(seedList);
     }
     if (seedAPath != "") {
-        seedPairs.setSeedsGroupA({new Structure(seedAPath)});
+        Structure* seedA = new Structure(seedAPath);
+        seedA->setName(seedPathToName(seedA->getName()));
+        seedPairs.setSeedsGroupA({seedA});
     }
     if (seedBPath != "") {
-        seedPairs.setSeedsGroupB({new Structure(seedBPath)});
+        Structure* seedB = new Structure(seedAPath);
+        seedB->setName(seedPathToName(seedB->getName()));
+        seedPairs.setSeedsGroupB({seedB});
     }
 
     string bridgeDirName = "seedBridgeStructures/";
@@ -198,12 +211,16 @@ int main (int argc, char *argv[]) {
         pair<Structure*,Structure*> seed_pair = seedPairs.next();
         Structure* seedA = seed_pair.first;
         Structure* seedB = seed_pair.second;
+        cout << seedA->getName() << " and " << seedB->getName() << endl;
         if (seedA == seedB) continue;
         if (seedA != clashCheck_current) {
             clashCheck.setStructure(*seedA);
             clashCheck_current = seedA;
         }
-        if (clashCheck.checkForClashesToStructure(seedB->getResidues())) continue;
+        if (clashCheck.checkForClashesToStructure(seedB->getResidues())) {
+            cout << "seeds clash" << endl;
+            continue;
+        }
         // Varying the offset allows us to "resect" the termini in case non-terminal residues are better for forming the bridge
         for (int seedAOffset = 0; seedAOffset <= min(resectLength,max(0,seedA->residueSize()-minSeedLength)); seedAOffset++) {
             for (int seedBOffset = 0; seedBOffset <= min(resectLength,max(0,seedB->residueSize()-minSeedLength)); seedBOffset++) {
@@ -222,9 +239,9 @@ int main (int argc, char *argv[]) {
                 cout << "Found bridges between " << seedA->getName() << " with offset " << MstUtils::toString(seedAOffset) << " and " << seedB->getName() << " with offset " << MstUtils::toString(seedBOffset) << endl;
 
                 // Save bridge structure info
-                seed_names = seedA->getName()+"_"+MstUtils::toString(seedAOffset)+"_"+MstUtils::toString(seedBOffset)+"_"+seedB->getName();
+                seed_names = seedA->getName()+"_"+MstUtils::toString(seedA->residueSize())+"_"+MstUtils::toString(seedAOffset)+"_"+MstUtils::toString(seedBOffset)+"_"+seedB->getName()+"_"+MstUtils::toString(seedB->residueSize());
                 bridgeFinder.getVerifiedBridgeLengthDist(seed_names);
-                bridgeFinder.writeToMultiPDB(bridgeDirName+"/"+seed_names+".pdb",seed_names);
+                // bridgeFinder.writeToMultiPDB(bridgeDirName+"/"+seed_names+".pdb",seed_names);
 
                 // Fuse seeds with bridge
                 fuser.setSeeds(seedA,seedB,seedAOffset,seedBOffset);

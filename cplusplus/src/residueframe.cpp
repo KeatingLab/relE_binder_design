@@ -35,6 +35,7 @@ void residueFrame::defineFrame(Residue* R) {
 void residueFrame::defineFrame(Atom* N_atom, Atom* Ca_atom, Atom* C_atom) {
     /*
     Following Ingraham et. al 2019, the orientation is defined as three basis vectors: [b, n, b x n]
+    However, the basis vectors are now defined from the backbone atoms of a single residue
     b = the negative bisector of the angle between N - Ca and C - Ca
     n = the unit vector normal to the plane formed between N - Ca and C - Ca
     */

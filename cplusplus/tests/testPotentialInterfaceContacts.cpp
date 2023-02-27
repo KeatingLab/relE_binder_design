@@ -73,9 +73,9 @@ int main(int argc, char *argv[]) {
             mstreal RjCbOrientation = pConts.getCaCbtoRiCaRjCaAngle(binderR,targetR);
             int numBBHeavyAtomsBetweenResidues = pConts.bbHeavyAtomsBetweenResidues(targetR,binderR);
 
-            bool SS = pConts.isPotentialSSContact(targetR,binderR);
-            bool SB = pConts.isPotentialSBContact(targetR,binderR);
-            bool BS = pConts.isPotentialSBContact(binderR,targetR);
+            bool SS = pConts.isPotentialSSContact(targetR,binderR,0.05);
+            bool SB = pConts.isPotentialSBContact(targetR,binderR,0.05);
+            bool BS = pConts.isPotentialSBContact(binderR,targetR,0.05);
             bool BB = pConts.isPotentialBBContact(targetR,binderR);
 
             out << targetR->getChainID() << "," << targetR->getNum() << "," << targetR->getName() << ",";

@@ -44,6 +44,8 @@ int main(int argc, char *argv[]) {
     op.addOption("structurePDB","A PDB file defining the structure to be scored",false);
     op.addOption("structurePDBList","A file where each line is the path to a PDB file defining the structure to be scored",false);
     op.addOption("kNeighbors","The number of nearest neighboring residues (including self) to consider when searching for matches (default: 30)",false);
+    op.addOption("potentialContacts","The path to a potential contacts JSON file. If provided, will gather pairs of residues using potential contacts in protein structures (as opposed to VDW contacts)",false);
+    op.addOption("pContactsDensityThresh","The probability density threshold used when determining whether a pair of residues is forming a potential contact (default = 0.05)");
     // op.addOption("RMSDCutoff","The RMSD cutoff that is applied when confirming a putative match (default = 0.25 Å)",false);
     op.addOption("worker","The ID of the worker assigned to this batch (default = 1)");
     op.addOption("nWorkers","The total number of workers (default = 1)");
@@ -59,34 +61,39 @@ int main(int argc, char *argv[]) {
         cout << "structurePDBList mode" << endl;
     } 
 
+    if (op.isGiven("kNeighbors") & op.isGiven("potentialContacts")) MstUtils::error("Cannot provide --kNeighbors if --potentialContacts is used");
+
     string resPairDB = op.getString("resPairDB");
     string structurePDB = op.getString("structurePDB","");
     string structurePDBList = op.getString("structurePDBList","");
     int kNeighbors = op.getInt("kNeighbors",30);
+    string potentialContactsPath = op.getString("potentialContacts","");
+    mstreal pContactsDensityThresh = op.getReal("pContactsDensityThresh",0.05);
     // mstreal RMSDCutoff = op.getReal("RMSDCutoff",0.25);
     bool verbose = op.isGiven("verbose");
     int worker = op.getInt("worker",1);
     int nWorkers = op.getInt("nWorkers",1);
     bool noSearch = op.getBool("noSearch",false);
 
-    findkNNResPairs kNNresPairs(resPairDB,kNeighbors,noSearch);
+    // findkNNResPairs kNNresPairs(resPairDB,kNeighbors,noSearch);
+    findPotentialContactResPairs potContsPairs(resPairDB,potentialContactsPath,noSearch);
+    potContsPairs.setpDensityThresh(pContactsDensityThresh);
 
     if (structurePDB != "") {
         Structure originalStructure(structurePDB,"SKIPHETERO|ALLOW ILE CD1");
         Structure cleanedStructure;
         RotamerLibrary::extractProtein(cleanedStructure,originalStructure);
-        augmentedStructure structure(cleanedStructure);
-        structure.setName(MstSys::splitPath(structurePDB,1));
-        kNNresPairs.setStructure(&structure);
-        kNNresPairs.findkNN();
-        kNNresPairs.searchkNN();
-        kNNresPairs.writeToFile();
+        cleanedStructure.setName(MstSys::splitPath(structurePDB,1));
+        potContsPairs.setStructure(&cleanedStructure);
+        potContsPairs.findContacts();
+        potContsPairs.searchContacts();
+        potContsPairs.writeToFile();
 
     } else if (structurePDBList != "") {
         vector<string> lines = MstUtils::fileToArray(structurePDBList);
         vector<string> batch;
         if (nWorkers > 1) {
-            vector<string> batch = getBatch(lines,worker,nWorkers);
+            batch = getBatch(lines,worker,nWorkers);
 
             fstream out;
             MstUtils::openFile(out,MstUtils::toString(worker)+"_batch_list.txt",fstream::out);
@@ -96,7 +103,7 @@ int main(int argc, char *argv[]) {
         } else {
             batch = lines;
         }
-
+        cout << "Batch with " << batch.size() << " structures" << endl;
         for (string structurePDB : batch) {
             string structureName = MstSys::splitPath(structurePDB,1);
             string outputName = structureName+"_respair_matches.csv";
@@ -108,12 +115,11 @@ int main(int argc, char *argv[]) {
             Structure originalStructure(structurePDB,"SKIPHETERO|ALLOW ILE CD1");
             Structure cleanedStructure;
             RotamerLibrary::extractProtein(cleanedStructure,originalStructure);
-            augmentedStructure structure(cleanedStructure);
-            structure.setName(structureName);
-            kNNresPairs.setStructure(&structure);
-            kNNresPairs.findkNN();
-            kNNresPairs.searchkNN();
-            kNNresPairs.writeToFile();
+            cleanedStructure.setName(structureName);
+            potContsPairs.setStructure(&cleanedStructure);
+            potContsPairs.findContacts();
+            potContsPairs.searchContacts();
+            potContsPairs.writeToFile();
         }
     }
     cout << "Done" << endl;

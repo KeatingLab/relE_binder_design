@@ -294,9 +294,9 @@ int findSeedBridge::verifyMatchesBySuperposition(mstreal RMSDCutoff) {
      std::sort(verifiedMatches.begin(),verifiedMatches.end());
 
     // Sort matches by bridge length
-    for (seedBridge* sB : verifiedMatches) {
-        matchesByLength[sB->getBridgeLength()].push_back(sB);
-    }
+    // for (seedBridge* sB : verifiedMatches) {
+    //     matchesByLength[sB->getBridgeLength()].push_back(sB);
+    // }
 
     cout << "Verified " << verifiedMatches.size() << " bridges with RMSD < " << RMSDCutoff << " to the query" << endl;
     return verifiedMatches.size();
@@ -384,7 +384,7 @@ void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
                 cout << "Bridge " << bridgeN << " clashes and will be discarded" << endl;
                 continue;
             }
-            string name = "bridge_"+seedA->getName()+"_"+MstUtils::toString(seedAOffset)+"_"+MstUtils::toString(lenN)+"_"+MstUtils::toString(seedBOffset)+"_"+seedB->getName()+"_"+MstUtils::toString(bridgeN);
+            string name = seedA->getName()+"_"+MstUtils::toString(seedA->residueSize())+"_loop-"+MstUtils::toString(bridgeN)+"_"+MstUtils::toString(lenN)+"_"+seedB->getName()+"_"+MstUtils::toString(seedB->residueSize());
             *bridge_out << "HEADER    " << name << endl;
             selectedBridge->writePDB(*bridge_out);
 
@@ -394,10 +394,12 @@ void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
             vector<Residue*> seedA_res = getFragmentRes(*seedA,0,seedA->residueSize()-seedAOffset);
             topology.addFragment(seedA_res,getFragResIdx(0,seedA->residueSize()-seedAOffset));
 
-            topology.addFragment(*selectedBridge,getFragResIdx(seedA->residueSize()-seedAOffset-overlapLength,selectedBridge->residueSize()));
-
             vector<Residue*> seedB_res = getFragmentRes(*seedB,seedBOffset,seedB->residueSize()-seedBOffset);
             topology.addFragment(seedB_res,getFragResIdx(seedA->residueSize()-seedAOffset+lenN,seedB->residueSize()-seedBOffset));
+
+            // add loop last to preserve seed A/B sequence
+            topology.addFragment(*selectedBridge,getFragResIdx(seedA->residueSize()-seedAOffset-overlapLength,selectedBridge->residueSize()));
+
             Structure fusedS = Fuser::fuse(topology,fuserOut,params);
             *fused_out << "HEADER    " << name << endl;
             fusedS.writePDB(*fused_out);

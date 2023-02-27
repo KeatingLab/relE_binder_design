@@ -675,13 +675,13 @@ void potentialContacts::setTargetResidues(vector<Residue*> _targetResidues) {
     targetCA.clear();
     for (Residue* R : targetResidues) {
         targetCA.push_back(R->findAtom("CA"));
-        string aa3 = R->getName();
-        if (!SeqToolsExtension::AAinSet(aa3)) {
-            aa3 = SeqToolsExtension::findEquivalentResidueInAlphabet(aa3,resStrict);
-            if (aa3 == "") continue;
-        }
-        res_t aaIdx = SeqTools::aaToIdx(aa3);
-        targetResidueAAIdentity[R] = aaIdx;
+        // string aa3 = R->getName();
+        // if (!sequenceAgnostic & !SeqToolsExtension::AAinSet(aa3)) {
+        //     aa3 = SeqToolsExtension::findEquivalentResidueInAlphabet(aa3,resStrict);
+        //     if (aa3 == "") continue;
+        // }
+        // res_t aaIdx = SeqTools::aaToIdx(aa3);
+        // targetResidueAAIdentity[R] = aaIdx;
     }
     contacts.clear();
     contactMap.clear();
@@ -736,6 +736,7 @@ void potentialContacts::load2DProbabilityDensities(string pathToJSON) {
         } else MstUtils::error("contType = "+contType+" not recognized","potentialContacts::load2DProbabilityDensities");
     }
     loadedPDensity = true;
+    cout << "Done loading probability densities from JSON" << endl;
 }
 
 set<Residue*> potentialContacts::getContactsWithResidue(Residue* R) {
@@ -753,9 +754,10 @@ vector<pair<Residue*,Residue*>> potentialContacts::getContacts(bool simpleDistan
         for (Atom* binderA : binderCA) {
             CartesianPoint binderCoor = binderA->getCoor();
             mstreal distance = targetCoor.distance(binderCoor);
-            Residue* binderRes = binderA->getResidue();
-            if (distance > distanceToCheck) continue;
+            Residue* binderRes =  binderA->getResidue();
+            if ((distance > distanceToCheck)||(distance < 0.1)) continue;
             if (sameChain && ignoreContact(targetRes,binderRes)) continue;
+            if (verbose) { cout << "targetRes: " << targetRes->getChainID() << targetRes->getNum() << " binderRes: " << binderRes->getChainID() << binderRes->getNum() << endl;}
             if (simpleDistanceCheck) {
                 contacts.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
                 contactMap[targetRes].insert(binderRes);
@@ -763,21 +765,21 @@ vector<pair<Residue*,Residue*>> potentialContacts::getContacts(bool simpleDistan
             }
             else {
                 if (!loadedPDensity) MstUtils::error("Must load probability densities to find potential contacts","potentialContacts::getContacts");
-                bool SSContact = isPotentialSSContact(targetRes,binderRes);
-                bool SBContact = isPotentialSBContact(targetRes,binderRes,true);
+                bool SSContact = isPotentialSSContact(targetRes,binderRes,pDensityThresh);
+                bool SBContact = isPotentialSBContact(targetRes,binderRes,pDensityThresh,false);
                 bool BBContact = false;
                 bool designable = true;
                 // Based on looking at data, there is never an interaction if Ca are more than 8 Å apart
                 if (distance <= 8.0) {
                     BBContact = isPotentialBBContact(targetRes,binderRes);
-                    designable = isDesignable(targetRes,binderRes);
+                    if (checkDesignability) designable = isDesignable(targetRes,binderRes);
                 }
                 if (SSContact || SSContact || BBContact) {
                     contacts.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
                     contactMap[targetRes].insert(binderRes);
                     contactMap[binderRes].insert(targetRes);
                 }
-                if (!designable) nonDesignablePairs.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
+                if (checkDesignability && !designable) nonDesignablePairs.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
             }
         }
     }
@@ -790,10 +792,12 @@ vector<pair<Residue*,Residue*>> potentialContacts::getNonDesignableContacts() {
 }
 
 bool potentialContacts::isPotentialSSContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh) {
-    res_t aaIdx = SeqTools::aaToIdx(Ri->getName());
+    res_t aaIdx = SeqTools::aaToIdx(sequenceAgnostic? "UNK" : Ri->getName());
     if (sidechainSidechainContactProbabilityDensity.find(aaIdx) == sidechainSidechainContactProbabilityDensity.end()) return false;
     mstreal normalizedCbDistance = getNormalizedCbDistance(Ri,Rj);
     mstreal CaDistance = getCaDistance(Ri,Rj);
+    if (verbose) { cout << "normalizedCbDistance: " << normalizedCbDistance << endl;}
+    if (verbose) { cout << "CaDistance: " << CaDistance << endl;}
     // if (sidechainSidechainContactProbabilityDensity.count(aaIdx)==0) return false;
     mstreal density = sidechainSidechainContactProbabilityDensity[aaIdx].getDensity(normalizedCbDistance,CaDistance);
     return density >= pDensityThresh;
@@ -801,12 +805,15 @@ bool potentialContacts::isPotentialSSContact(Residue* Ri, Residue* Rj, mstreal p
 
 bool potentialContacts::isPotentialSBContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh, bool checkReverseDirection) {
     bool SB = false, BS = false;
-    res_t aaIdx = SeqTools::aaToIdx(Ri->getName());
-    res_t RjaaIdx = SeqTools::aaToIdx(Rj->getName());
+    res_t aaIdx = SeqTools::aaToIdx(sequenceAgnostic? "UNK" : Ri->getName());
+    res_t RjaaIdx = SeqTools::aaToIdx(sequenceAgnostic? "UNK" : Rj->getName());
     if (sidechainBackboneContactProbabilityDensity.find(aaIdx) == sidechainBackboneContactProbabilityDensity.end()) return false;
     mstreal CaCbtoRiCaRjCaAngle = getCaCbtoRiCaRjCaAngle(Ri,Rj);
     mstreal RjCaCbtoRjCaRiCaAngle = getCaCbtoRiCaRjCaAngle(Rj,Ri); //horrendous notation, but it's just checking the reverse direction
     mstreal CaDistance = getCaDistance(Ri,Rj);
+    if (verbose) { cout << "CaCbtoRiCaRjCaAngle: " << CaCbtoRiCaRjCaAngle << endl;}
+    if (verbose) { cout << "RjCaCbtoRjCaRiCaAngle: " << RjCaCbtoRjCaRiCaAngle << endl;}
+    if (verbose) { cout << "CaDistance: " << CaDistance << endl;}
     if (sidechainBackboneContactProbabilityDensity.count(aaIdx)>0) SB = sidechainBackboneContactProbabilityDensity[aaIdx].getDensity(CaCbtoRiCaRjCaAngle,CaDistance) >= pDensityThresh;
     else SB = false;
     if (sidechainBackboneContactProbabilityDensity.count(RjaaIdx)>0) BS = sidechainBackboneContactProbabilityDensity[RjaaIdx].getDensity(RjCaCbtoRjCaRiCaAngle,CaDistance) >= pDensityThresh;
@@ -827,6 +834,7 @@ bool potentialContacts::isPotentialBBContact(Residue* Ri, Residue* Rj) {
 }
 
 bool potentialContacts::isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityThresh) {
+    if (!checkDesignability) MstUtils::error("Cannot check designability: option disabled","potentialContacts::isDesignable");
     res_t aaIdx = SeqTools::aaToIdx(Ri->getName());
     if (sidechainSidechainDesignabilityProbabilityDensity.find(aaIdx) == sidechainSidechainDesignabilityProbabilityDensity.end()) MstUtils::error("Could not find histogram with sidechain-sidechain designability data for residue "+MstUtils::toString(aaIdx),"potentialContacts::isDesignable");
     mstreal CaDistance = getCaDistance(Ri,Rj);

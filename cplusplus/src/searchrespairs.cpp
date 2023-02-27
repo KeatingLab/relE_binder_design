@@ -61,17 +61,20 @@ int findResPairs::searchForMatches(bool verbose) {
     // cout << "z axis angle: " << queryAngles.getZ() << endl;
 
     // search for residue pairs with matching distances
+    timer.start();
     vector<int> matchingResPairIDs = PS.getPointsWithin(queryBBdistances,0,dCut,true);
     // vector<int> matchingResPairIDs = resPairMap->searchResPair(&queryRP);
     for (int ID : matchingResPairIDs) {
         resPair* rP = allResPairs[ID];
         matches.push_back(rP);
     }
-    cout << "Found " << matches.size() << " matching residue pairs by comparing Ca distances and angles" << endl;
+    timer.stop();
+    cout << "Found " << matches.size() << " matching residue pairs by comparing Ca distances and angles in " << timer.getDuration() << " s" << endl;
 
     // step 2: optimally superimpose each candidate match to the query and calculate RMSD
     if (matches.empty()) return 0;
     vector<Atom*> queryAtoms = queryRP.getAtoms();
+    timer.start();
     for (resPair* rP : matches) {
         vector<Atom*> bbAtoms = rP->getAtoms();
         mstreal RMSDval = calc.bestRMSD(bbAtoms,queryAtoms);
@@ -82,7 +85,8 @@ int findResPairs::searchForMatches(bool verbose) {
             verifiedMatches.push_back(rP);
         }
     }
-    cout << "Verified " << verifiedMatches.size() << " residue pairs with RMSD <= " << rmsdCut << " to the query" << endl;
+    timer.stop();
+    cout << "Verified " << verifiedMatches.size() << " residue pairs with RMSD <= " << rmsdCut << " to the query in " << timer.getDuration() << " s" << endl;
     return verifiedMatches.size();
 }
 

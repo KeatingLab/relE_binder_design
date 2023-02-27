@@ -69,6 +69,21 @@ public:
         return false;
     }
 
+    int countClashesToStructure(vector<Residue*> queryRes) {
+        if (PS == nullptr) MstUtils::error("Must first provide structure to check","clashChecker::checkForClashesToStructure");
+        int n_clashes = 0;
+        for (Residue* R : queryRes) {
+            for (Atom* A : R->getAtoms()) {
+                vector<int> nearPoints = PS->getPointsWithin(A->getCoor(),0,vdwCheck.maxSumRadii());
+                for (int i : nearPoints) {
+                    Atom* targetA = atoms[i];
+                    if (vdwCheck.clash(A,targetA)) n_clashes++;
+                }
+            }
+        }
+        return n_clashes;
+    }
+
     bool checkForClashesWithinQueryStructure(vector<Residue*> queryRes) {
         for (Residue* Ri : queryRes) {
                 for (Residue* Rj : queryRes) {
@@ -178,6 +193,9 @@ class potentialContacts {
         void setBinderResidues(vector<Residue*> _binderResidues);
         void setMaxDistanceToCheck(mstreal CaDist) {distanceToCheck = CaDist;}
         void setResStrict(bool _strict) {resStrict = _strict;}
+        void setSeqAgnostic(bool _sequenceAgnostic) {sequenceAgnostic = _sequenceAgnostic;}
+        void setCheckDesignability(bool _val) {checkDesignability = _val;}
+        void setpDensityThresh(mstreal _val) {pDensityThresh = _val;}
 
         set<Residue*> getContactsWithResidue(Residue* R);
 
@@ -186,8 +204,8 @@ class potentialContacts {
         vector<pair<Residue*,Residue*>> getNonDesignableContacts();
         int getNumNonDesignablePairs() {return nonDesignablePairs.size();}
 
-        bool isPotentialSSContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.05);
-        bool isPotentialSBContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.05, bool checkReverseDirection = false);
+        bool isPotentialSSContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh);
+        bool isPotentialSBContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh, bool checkReverseDirection = false);
         bool isPotentialBBContact(Residue* Ri, Residue* Rj);
         bool isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.0025);
         // bool isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.001);
@@ -240,6 +258,7 @@ class potentialContacts {
         vector<Residue*> targetResidues;
         vector<Residue*> binderResidues;
         bool singleStructure = false;
+        bool verbose = false;
 
         vector<CartesianPoint> targetResCb;
         vector<CartesianPoint> binderResCb;
@@ -252,9 +271,12 @@ class potentialContacts {
         mstreal polarAngle = 37.794;
         mstreal azimuthalAngle = 87.948;
 
-        map<Residue*,res_t> targetResidueAAIdentity;
+        // map<Residue*,res_t> targetResidueAAIdentity;
         bool resStrict = true;
+        bool sequenceAgnostic = false;
+        bool checkDesignability = false;
         mstreal distanceToCheck = 15.0;
+        mstreal pDensityThresh = 0.05;
 
         bool loadedPDensity = false;
         map<res_t,twoDimHistogram> sidechainSidechainContactProbabilityDensity;

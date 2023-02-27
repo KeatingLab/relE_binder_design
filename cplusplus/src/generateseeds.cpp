@@ -292,9 +292,9 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
 
                 vector<Residue*> seedRes;
                 Structure* seed = new Structure(); seeds.push_back(seed);
-                // fragmentname_targetidx_residx
+                // fragmentname_targetidx_matchresidx_seedresidx
                 string seedName = fD.getName() + "_" + MstUtils::toString(sol.getTargetIndex()) + "_" 
-                + MstUtils::toString(contactingResIdx);
+                + MstUtils::toString(matchIndices[fD.cenResIdxInFrag]) + "_" + MstUtils::toString(contactingResIdx);
                 seed->setName(seedName);
 
                 Chain* seedChain = seed->appendChain("0",false);

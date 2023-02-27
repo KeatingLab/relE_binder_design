@@ -37,16 +37,30 @@ from terminator.models.TERMinator import TERMinator
 from terminator.utils.model.loop_utils import run_epoch,_to_dev
 from terminator.utils.model.loss_fn import construct_loss_fn
 from terminator.utils.common import int_to_3lt_AA,AA_to_int,int_to_AA
+from terminator.utils.model.default_hparams import DEFAULT_MODEL_HPARAMS, DEFAULT_TRAIN_HPARAMS
 
-from scripts.score_binders.hbond_utils import bbHBond
+# from python.score_binders.hbond_utils import bbHBond
+from python.score_binders.score_utils import *
 
 # pylint: disable=unspecified-encoding
+
+def load_hparams(model_path, default_hparams, output_name):
+    print("loading params")
+    # load hparams
+    hparams_path = os.path.join(model_path, output_name)
+    hparams = json.load(open(hparams_path, 'r'))
+    for hparam in default_hparams:
+        if hparam not in hparams:
+            # print(f"{hparam} = {default_hparams[hparam]}")
+            hparams[hparam] = default_hparams[hparam]
+    return hparams
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Score peptide-binder backbones using TERMinator energies')
     parser.add_argument('--binder_dataset', help='Multi-entry PDB file containing a target structure and various binder structures')
     parser.add_argument('--complex_dataset', help='A file where each line is the path to a PDB file describing a complex. NOTE: peptide must come after the protein structure')
     parser.add_argument('--binder_list', help='A file where each line the name of a binder in the binder_dataset file that should be scored', default='')
+    parser.add_argument('--target_pdb',help='pdb file describing the structure of the target protein', default='')
     parser.add_argument('--model_dir', help='trained model folder', required=True)
     parser.add_argument('--seq_mode', help='controls which sequence is used when scoring the binder', default='consensus_aa')
     parser.add_argument('--score_mode', help='controls which pair energies are used when scoring', default='')
@@ -73,8 +87,12 @@ if __name__ == '__main__':
         dev = "cpu"
 
     # Initialize the special dataloader for binders
+    binder_subset = get_binder_names(args.binder_list)
+    n_binders = len(binder_subset) if (binder_subset is not None) else "all"
+    print(f"Will attempt to load {n_binders} total structures from the binder dataset")
     if (args.binder_dataset):
-        dataset = BinderScoringIterableDataset(args.binder_dataset)
+        # dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb)
+        dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,27500,binder_subset)
         dataset_iter = iter(dataset)
     elif (args.complex_dataset):
         dataset = ComplexScoringDataset(args.complex_dataset)
@@ -84,10 +102,8 @@ if __name__ == '__main__':
     # dataloader = DataLoader(dataset,batch_size=1)
 
     # Load the model configuration parameters
-    with open(os.path.join(args.model_dir, "model_hparams.json")) as fp:
-        model_hparams = json.load(fp)
-    with open(os.path.join(args.model_dir, "run_hparams.json")) as fp:
-        run_hparams = json.load(fp)
+    model_hparams = load_hparams(args.model_dir, DEFAULT_MODEL_HPARAMS, 'model_hparams.json')
+    run_hparams = load_hparams(args.model_dir, DEFAULT_TRAIN_HPARAMS, 'run_hparams.json')
 
     # backwards compatibility
     if "cov_features" not in model_hparams.keys():
@@ -123,6 +139,8 @@ if __name__ == '__main__':
         model_hparams["use_flex"] = False
         model_hparams["flex_type"] = ""
 
+    print(model_hparams)
+
     # Initialize the model
     terminator = TERMinator(hparams=model_hparams, device=dev)
 
@@ -157,7 +175,8 @@ if __name__ == '__main__':
                 # if args.hbond:
                 #     hbDetector.setBinderResidues(dataset.current_binder_data['coords'])
             scorer.get_binder_scores(args.seq_mode,args.score_mode)
-            scorer.write_scores(args.score_mode)
+            scorer.write_structure_scores(args.score_mode)
+            scorer.write_residue_scores(args.score_mode)
             scorer.write_pep_seqs()
             # scorer.write_pep_seq_probs()
             stop = time.time()
@@ -190,12 +209,13 @@ if __name__ == '__main__':
                 scorer.set_new_binder_and_complex(packaged_binder_complex_data)
                 # if args.hbond:
                 #     hbDetector.setTargetResidues(dataset.target_data['coords'])
-            if binderSubsetNames != set() and scorer.get_pdb_name() not in binderSubsetNames:
+            if binderSubsetNames is not None and scorer.get_pdb_name() not in binderSubsetNames:
                 continue
             # else:
             #     print(f"scoring binder {scorer.get_pdb_name(idx)}")
             scorer.get_binder_scores(args.seq_mode,args.score_mode)
-            scorer.write_scores(args.score_mode)
+            scorer.write_structure_scores(args.score_mode)
+            scorer.write_residue_scores(args.score_mode)
             scorer.write_pep_seqs()
             scorer.write_pep_seq_probs()
             stop = time.time()

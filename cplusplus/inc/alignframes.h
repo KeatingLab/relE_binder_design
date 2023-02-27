@@ -7,6 +7,7 @@
 #include "msttypes.h"
 #include "msttransforms.h"
 
+#include "residuecontact.h"
 #include "residueframe.h"
 
 class frameDB;
@@ -92,26 +93,34 @@ private:
 class alignInteractingFrames
 {
 public:
-    alignInteractingFrames(bool _verbose = false, int _flanking_res = -1, mstreal _subsample_flanking = 0.1) : verbose(_verbose), flanking_res(_flanking_res), subsample_flanking(_subsample_flanking) {};
+    alignInteractingFrames(bool _verbose = false, int _flanking_res = -1, mstreal _subsample_flanking = 0.1, string _potentialContactsPath = "") : verbose(_verbose), flanking_res(_flanking_res), subsample_flanking(_subsample_flanking), potentialContactsPath(_potentialContactsPath) {
+        if (potentialContactsPath != "") loadPCFromJSON();
+    };
     
     /**
      * @brief Construct a new align Frames object by reading augmented structures from DB
      * 
      * @param dbPath path to the augmented structures DB
      */
-    alignInteractingFrames(string dbPath, bool _verbose = false, int _flanking_res = -1, mstreal _subsample_flanking = 0.1) : db(dbPath), refFrame(Frame()), verbose(_verbose), flanking_res(_flanking_res), subsample_flanking(_subsample_flanking) {
+    alignInteractingFrames(string dbPath, bool _verbose = false, int _flanking_res = -1, mstreal _subsample_flanking = 0.1, string _potentialContactsPath = "") : db(dbPath), refFrame(Frame()), verbose(_verbose), flanking_res(_flanking_res), subsample_flanking(_subsample_flanking), potentialContactsPath(_potentialContactsPath) {
         if (flanking_res >= 0 ) cout << "Warning: if flanking_res does not match the value used when defining VDW contacts in the structure database (originally 8), then some residue pairs could be double counted" << endl;
         cout << "Flanking residues: " << flanking_res << endl;
-        cout << "Flanking residue subsample rate: " << subsample_flanking << endl; 
+        cout << "Flanking residue subsample rate: " << subsample_flanking << endl;
+        if (potentialContactsPath != "") loadPCFromJSON();
     }
     
     ~alignInteractingFrames() {
         for (mobileFrame* frame : allInteractingFrames) delete frame;
+        if (PC != nullptr) delete PC;
     }
 
     void setAA(string resName);
     void setRefFrame(const residueFrame &_rFrame) { refFrame = _rFrame; }
     void setHomThresh(mstreal _homThresh) {homologyThreshold = _homThresh;}
+    void setpDensityThresh(mstreal val) {
+        if (PC == nullptr) MstUtils::error("potential contacts object is null","alignInteractingFrames::setpDensityThresh");
+        PC->setpDensityThresh(val);
+    }
 
     void findMobileFrames();
 
@@ -134,6 +143,11 @@ public:
 protected:
     Structure *changeFrameToRef(Structure* interactingResiduePair, mobileFrame* frame);
     Structure *constructStructureFromResiduePair(Residue *Ri, Residue *Rj, mobileFrame* frame);
+    void loadPCFromJSON() {
+        PC = new potentialContacts();
+        PC->load2DProbabilityDensities(potentialContactsPath);
+        PC->setSeqAgnostic(true);
+    }
 
     /**
      * @brief Define a window around each residue, extract sequence, and find the identity
@@ -152,6 +166,9 @@ private:
     mstreal subsample_flanking; // If greater than 0, will randomly subsample flanking residues to reduce memory footprint
     bool verbose;
 
+    string potentialContactsPath = "";
+    potentialContacts *PC = nullptr;
+
     map<string, string> aaConversions;
 
     res_t aa = SeqTools::unknownIdx();
@@ -161,7 +178,6 @@ private:
     vector<mobileFrame*> allInteractingFrames;
     vector<resPair> allInteractingRes;
     
-
     Transform tf;
 
     map<res_t,map<int,int> > interactionData;

@@ -17,13 +17,13 @@ from terminator.utils.model.loop_utils import run_epoch,_to_dev
 from terminator.utils.model.loss_fn import construct_loss_fn
 from terminator.utils.common import int_to_3lt_AA,AA_to_int,int_to_AA
 
-from scripts.score_binders.hbond_utils import bbHBond
+# from scripts.score_binders.hbond_utils import bbHBond
 
 # pylint: disable=unspecified-encoding
 
 def get_binder_names(pathToListFile):
     if pathToListFile == '':
-        return set()
+        return None
     with open(pathToListFile,'r') as file:
         names = set([line.strip() for line in file])
     return names
@@ -39,6 +39,7 @@ class interfaceScorer:
         torch.set_grad_enabled(False)
     
         self.score_file = None
+        self.structure_score_file = None
         self.seq_file = None
         self.pep_seq_prob_file = None
 
@@ -51,20 +52,20 @@ class interfaceScorer:
         self.target_netout = None
         self.unbound_target_aa_probs = None
         self.unbound_target_seq_probs = None
-        self.new_seq = None
+        # self.new_seq = None
 
     def set_new_binder_and_complex(self,binder_complex_data):
         '''Note: assumes that the target structure is unchanged'''
         # binder and complex data are lists 
         self.binder_complex_data = binder_complex_data
         self.binder_netout = None
-        self.new_seq = None
-        self.unbound_binder_aa_probs = None
-        self.unbound_binder_seq_probs = None
         self.complex_netout = None
-        self.bound_aa_probs = None
-        self.bound_seq_probs = None
-        self.unbound_seq_probs = None
+        # self.new_seq = None
+        # self.unbound_binder_aa_probs = None
+        # self.unbound_binder_seq_probs = None
+        # self.bound_aa_probs = None
+        # self.bound_seq_probs = None
+        # self.unbound_seq_probs = None
 
         self.binder_chain_ids = [chain_id for idx,chain_id in enumerate(self.binder_complex_data['binder_chain_id']) if idx % 2 == 0]
 
@@ -113,9 +114,10 @@ class interfaceScorer:
         _to_dev(data, dev)
         max_seq_len = max(data['seq_lens'].tolist())
         try:
-            etab, E_idx = self.model(data, max_seq_len)
+            etab, E_idx, sscore = self.model(data, max_seq_len)
             print('etab: ',etab.shape)
             print('E_idx:',E_idx.shape)
+            print('sscore: ',sscore.shape)
         except Exception as e:
             print(data['ids'])
             raise e
@@ -140,6 +142,7 @@ class interfaceScorer:
                 # 'E_idx': E_idx[idx].cpu(),
                 'etab': etab[idx][:l_crop,:min(l_crop,k)].view(l_crop, min(l_crop,k), 20, 20).cpu(),
                 'E_idx': E_idx[idx][:l_crop,:min(l_crop,k)].cpu(),
+                'sscore': sscore[idx][:l_crop].cpu(),
                 'seq':data['seqs'][idx][:l_crop].cpu(),
                 'res_info':data['res_info'][idx]
             }
@@ -185,6 +188,9 @@ class interfaceScorer:
         self.unbound_binder_seq_probs = []
         self.bound_seq_probs, self.unbound_seq_probs = [], []
         self.binder_scores = []
+        self.unbound_structure_scores = []
+        self.unbound_structure_score_targettotal = None
+        self.bound_structure_scores = []
 
         if self.target_netout == None or self.complex_netout == None:
             self.generate_etabs()
@@ -223,7 +229,14 @@ class interfaceScorer:
 
             binder_scores = -torch.log(bound_seq_probs/unbound_seq_probs)
             self.binder_scores.append(binder_scores)
-        return self.binder_scores
+
+            # get the structure score from the bound peptide + protein
+            if self.unbound_structure_score_targettotal == None:
+                self.unbound_structure_score_targettotal = self.target_netout['sscore'].sum()
+            self.unbound_structure_scores.append(torch.cat((self.target_netout['sscore'],self.binder_netout[idx]['sscore']),dim=0))
+            self.bound_structure_scores.append(self.complex_netout[idx]['sscore'])
+
+        return self.binder_scores, self.bound_structure_scores
     
     @staticmethod
     def get_aa_prob(etab, E_idx, seq, fixed_res, variable_res, seq_mode, score_mode):
@@ -464,15 +477,27 @@ class interfaceScorer:
         return seq_prob.squeeze()
 
     ### File output methods
-    def write_scores(self, score_mode: str):
+    def write_residue_scores(self, score_mode: str):
         if (self.score_file == None):
-            self.score_file = open('binderScores.csv','w')
-            self.score_file.write('name,score_mode,res_idx,chain_id,resnum,score,unbound_nat_aa_prob,bound_nat_aa_prob\n')
+            self.score_file = open('residueBinderScores.csv','w')
+            self.score_file.write('name,score_mode,res_idx,chain_id,resnum,seqstruct_score,unbound_nat_aa_prob,bound_nat_aa_prob,unbound_struct_score,bound_struct_score\n')
         for idx in range(len(self.complex_netout)):
-            assert len(self.binder_scores[idx]) == len(self.prot_res_info[idx]) + len(self.pep_res_info[idx]) == len(self.bound_seq_probs[idx]) == len(self.unbound_seq_probs[idx])
-            for i,((chain_id,res_num),score,unbound_prob,bound_prob) in enumerate(zip(self.prot_res_info[idx]+self.pep_res_info[idx],self.binder_scores[idx],torch.cat((self.unbound_target_seq_probs,self.unbound_binder_seq_probs[idx]),dim=0),self.bound_seq_probs[idx])):
-                line = f"{self.complex_netout[idx]['id']},{score_mode},{i},{chain_id},{res_num},{score.item()},{unbound_prob.item()},{bound_prob.item()}"
+            assert len(self.binder_scores[idx]) == len(self.unbound_structure_scores[idx]) == len(self.prot_res_info[idx]) + len(self.pep_res_info[idx]) == len(self.bound_seq_probs[idx]) == len(self.unbound_seq_probs[idx]), print(len(self.binder_scores[idx]),len(self.bound_structure_scores[idx]),len(self.prot_res_info[idx]),len(self.pep_res_info[idx]))
+            for i,((chain_id,res_num),score,unbound_prob,bound_prob,unbound_struct_score,bound_struct_score) in enumerate(zip(self.prot_res_info[idx]+self.pep_res_info[idx],self.binder_scores[idx],torch.cat((self.unbound_target_seq_probs,self.unbound_binder_seq_probs[idx]),dim=0),self.bound_seq_probs[idx],self.unbound_structure_scores[idx],self.bound_structure_scores[idx])):
+                line = f"{self.complex_netout[idx]['id']},{score_mode},{i},{chain_id},{res_num},{score.item()},{unbound_prob.item()},{bound_prob.item()},{unbound_struct_score.item()},{bound_struct_score.item()}"
                 self.score_file.write(line+'\n')
+
+    def write_structure_scores(self, score_mode: str):
+        if (self.structure_score_file == None):
+            self.structure_score_file = open('structureBinderScores.csv','w')
+            self.structure_score_file.write('name,score_mode,N_target_res,N_peptide_res,seqstruct_score,struct_score\n')
+        for idx in range(len(self.complex_netout)):
+            N_target_res = len(self.protein_res[idx])
+            N_peptide_res = len(self.protein_res[idx])
+            seqstruct_score = torch.sum(self.binder_scores[idx]).item()
+            struct_score = (torch.sum(self.bound_structure_scores[idx]) - self.unbound_structure_score_targettotal).item() # subtract unbound target for comparison
+            line = f"{self.complex_netout[idx]['id']},{score_mode},{N_target_res},{N_peptide_res},{seqstruct_score},{struct_score}"
+            self.structure_score_file.write(line+'\n')
 
     def write_pep_seqs(self):
         if self.seq_file == None:
@@ -513,6 +538,8 @@ class interfaceScorer:
         # not a great solution, I know
         if self.score_file is not None:
             self.score_file.close()
+        if self.structure_score_file is not None:
+            self.structure_score_file.close()
         if self.seq_file is not None:
             self.seq_file.close()
         if self.pep_seq_prob_file is not None:
@@ -522,6 +549,7 @@ class interfaceScorer:
         target_netout_pickle = {
             'etab':self.target_netout['etab'].numpy(),
             'E_idx':self.target_netout['E_idx'].numpy(),
+            'sscore':self.target_netout['sscore'].numpy(),
             'seq':self.target_netout['seq'].numpy(),
             'protein_res':self.protein_res[0].numpy(),
         }
@@ -533,6 +561,7 @@ class interfaceScorer:
             netout_pickle = {
                 'etab':self.binder_netout[idx]['etab'].numpy(),
                 'E_idx':self.binder_netout[idx]['E_idx'].numpy(),
+                'sscore':self.binder_netout[idx]['sscore'].numpy(),
                 'seq':self.binder_netout[idx]['seq'].numpy(),
                 'peptide_res':self.peptide_res[idx].numpy(),
                 'final_seq':self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]].numpy()
@@ -545,6 +574,7 @@ class interfaceScorer:
             complex_netout_pickle = {
                 'etab':self.complex_netout[idx]['etab'].numpy(),
                 'E_idx':self.complex_netout[idx]['E_idx'].numpy(),
+                'sscore':self.complex_netout[idx]['sscore'].numpy(),
                 'seq':self.complex_netout[idx]['seq'].numpy(),
                 'protein_res':self.protein_res[idx].numpy(),
                 'peptide_res':self.peptide_res[idx].numpy(),

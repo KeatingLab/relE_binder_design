@@ -5,6 +5,7 @@
 
 #include "alignframes.h"
 #include "hashframes.h"
+#include "residuecontact.h"
 #include "residueframe.h"
 
 class distance3AngleTable {
@@ -100,6 +101,7 @@ class findResPairs {
         vector<resPair*> verifiedMatches;
 
         RMSDCalculator calc;
+        MstTimer timer;
 };
 
 class findkNNResPairs {
@@ -212,6 +214,103 @@ class findkNNResPairs {
 
         set<pair<Residue*,Residue*>> kNN; //does not include duplicates. residues sorted: res i < res j
         map<pair<Residue*,Residue*>,int> kNN_to_matches;
+};
+
+class findPotentialContactResPairs {
+    public:
+        findPotentialContactResPairs(string resPairDBPath, string potentialContactsJSON, bool _noSearch = false) : resPairSearcher(resPairDBPath,0.75,30,0.25), noSearch(_noSearch) {
+            potContFinder.load2DProbabilityDensities(potentialContactsJSON);
+            potContFinder.setCheckDesignability(false);
+            potContFinder.setSeqAgnostic(true);
+        }
+
+        void setStructure(Structure* _S) {
+            S = _S;
+            potContFinder.setTargetResidues(S->getResidues());
+            potContFinder.setBinderResidues(S->getResidues());
+            PCs.clear();
+            PCs_to_matches.clear();
+        }
+
+        void setpDensityThresh(mstreal val) {
+            cout << "Setting potential contacts probability density threshold to " << val << endl;
+            potContFinder.setpDensityThresh(val);
+        }
+
+        set<pair<Residue*,Residue*>> findContacts() {
+            PCs.clear();
+            for (int chain_id = 0; chain_id < S->chainSize(); chain_id++) {
+                Chain* Ci = &S->getChain(chain_id);
+                for (Residue* Ri : Ci->getResidues()) {
+                    // Get residues + 8 in the chain
+                    int Rj_idx_start = Ri->getResidueIndexInChain() + 1;
+                    for (int Rj_idx = Rj_idx_start; Rj_idx < min(Rj_idx_start+8,int(Ci->residueSize())); Rj_idx++) {
+                        Residue* Rj = &S->getResidue(Rj_idx);
+                        PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
+                    }
+                    set<Residue*> contacting_res = potContFinder.getContactsWithResidue(Ri);
+                    for (Residue* Rj : contacting_res) {
+                        if (Ri->getResidueIndex() < Rj->getResidueIndex()) {
+                            PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
+                        }
+                    }
+                }
+            }
+            cout << "Found " << PCs.size() << " potential contacts" << endl;
+            return PCs;
+        }
+
+        void searchContacts() {
+            if (PCs.empty()) MstUtils::error("Cannot search for matches until contacts have been defined");
+            for (pair<Residue*,Residue*> pair : PCs) {
+                Residue* Ri = pair.first;
+                Residue* Rj = pair.second;
+
+                resPairSearcher.setQuery(Ri,Rj);
+                int n_matches;
+                if (noSearch) {
+                    n_matches = 0;
+                } else {
+                    n_matches = resPairSearcher.searchForMatches();
+                }
+                PCs_to_matches[pair] = n_matches;
+            }
+        }
+
+        void writeToFile() {
+            fstream out;
+            MstUtils::openFile(out,S->getName()+"_respair_matches.csv",fstream::out);
+            out << "Ri_resIdx,Ri_chainID,Ri_resnum,Rj_resIdx,Rj_chainID,Rj_resnum,Ca_distance,n_matches" << endl;
+            for (pair<Residue*,Residue*> pair : PCs) {
+                // store in both directions, for convenience
+                Residue* Ri = pair.first;
+                Residue* Rj = pair.second;
+
+                out << Ri->getResidueIndex() << "," << Ri->getChainID() << "," << Ri->getNum() << ",";
+                out << Rj->getResidueIndex() << "," << Rj->getChainID() << "," << Rj->getNum() << ",";
+                out << Ri->findAtom("CA")->getCoor().distance(Rj->findAtom("CA")->getCoor()) << ",";
+                out << PCs_to_matches[pair] << endl;
+
+                Ri = pair.second;
+                Rj = pair.first;
+
+                out << Ri->getResidueIndex() << "," << Ri->getChainID() << "," << Ri->getNum() << ",";
+                out << Rj->getResidueIndex() << "," << Rj->getChainID() << "," << Rj->getNum() << ",";
+                out << Ri->findAtom("CA")->getCoor().distance(Rj->findAtom("CA")->getCoor()) << ",";
+                out << PCs_to_matches[pair] << endl;
+            }
+        }
+
+    private:
+        bool noSearch = false;
+
+        potentialContacts potContFinder;
+        findResPairs resPairSearcher;
+
+        Structure* S = nullptr;
+
+        set<pair<Residue*,Residue*>> PCs; //does not include duplicates. residues sorted: res i < res j
+        map<pair<Residue*,Residue*>,int> PCs_to_matches;
 };
 
 #endif
