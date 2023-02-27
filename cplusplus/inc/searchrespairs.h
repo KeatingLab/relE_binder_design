@@ -232,6 +232,37 @@ class findPotentialContactResPairs {
             PCs_to_matches.clear();
         }
 
+        void setResidueSelection(set<Residue*> sel, bool neighbors = true) {
+            // If neigbors = true, then we will treat all residues in sel *and* their neighbors as central residues
+            // meaning that we will report the number of matches for all potential contacts involving those residues
+            PCs_to_matches.clear();
+            set<pair<Residue*,Residue*>> new_PCs;
+            set<Residue*> neighbor_set;
+            if (neighbors) {
+                // find all residues that contact the selected residues
+                for (pair<Residue*,Residue*> res_pair : PCs) {
+                    Residue* Ri = res_pair.first;
+                    Residue* Rj = res_pair.second;
+                    bool Ri_in_sel = (sel.find(Ri) != sel.end());
+                    bool Rj_in_sel = (sel.find(Rj) != sel.end());
+                    if (Ri_in_sel && !Rj_in_sel) neighbor_set.insert(Rj);
+                    if (Rj_in_sel && !Ri_in_sel) neighbor_set.insert(Ri);
+                }
+            }
+            for (pair<Residue*,Residue*> res_pair : PCs) {
+                Residue* Ri = res_pair.first;
+                Residue* Rj = res_pair.second;
+                bool Ri_in_sel_or_neigh = (sel.find(Ri) != sel.end()) || (neighbor_set.find(Ri) != neighbor_set.end());
+                bool Rj_in_sel_or_neigh = (sel.find(Rj) != sel.end()) || (neighbor_set.find(Rj) != neighbor_set.end());
+                if (Ri_in_sel_or_neigh || Rj_in_sel_or_neigh) {
+                    new_PCs.insert(res_pair);
+                }
+            }
+            cout << "Started with " << PCs.size() << " residue pairs, now have " << new_PCs.size() << endl;
+
+            PCs = new_PCs;
+        }
+
         void setpDensityThresh(mstreal val) {
             cout << "Setting potential contacts probability density threshold to " << val << endl;
             potContFinder.setpDensityThresh(val);

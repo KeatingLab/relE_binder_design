@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
     op.addOption("kNeighbors","The number of nearest neighboring residues (including self) to consider when searching for matches (default: 30)",false);
     op.addOption("potentialContacts","The path to a potential contacts JSON file. If provided, will gather pairs of residues using potential contacts in protein structures (as opposed to VDW contacts)",false);
     op.addOption("pContactsDensityThresh","The probability density threshold used when determining whether a pair of residues is forming a potential contact (default = 0.05)");
+    op.addOption("binderChainID","The chain ID corresponding to the binder. Residue pair info will be gather around all residues in the binder + residues interacting with those");
     // op.addOption("RMSDCutoff","The RMSD cutoff that is applied when confirming a putative match (default = 0.25 Å)",false);
     op.addOption("worker","The ID of the worker assigned to this batch (default = 1)");
     op.addOption("nWorkers","The total number of workers (default = 1)");
@@ -69,6 +70,7 @@ int main(int argc, char *argv[]) {
     int kNeighbors = op.getInt("kNeighbors",30);
     string potentialContactsPath = op.getString("potentialContacts","");
     mstreal pContactsDensityThresh = op.getReal("pContactsDensityThresh",0.05);
+    string binderChainID = op.getString("binderChainID","");
     // mstreal RMSDCutoff = op.getReal("RMSDCutoff",0.25);
     bool verbose = op.isGiven("verbose");
     int worker = op.getInt("worker",1);
@@ -86,6 +88,13 @@ int main(int argc, char *argv[]) {
         cleanedStructure.setName(MstSys::splitPath(structurePDB,1));
         potContsPairs.setStructure(&cleanedStructure);
         potContsPairs.findContacts();
+        if (binderChainID != "") {
+            Chain* binderChain = cleanedStructure.getChainByID(binderChainID);
+            if (binderChain == NULL) MstUtils::error("Binder chain not found","main");
+            vector<Residue*> res_vec = binderChain->getResidues();
+            set<Residue*> res_sel(res_vec.begin(),res_vec.end());
+            potContsPairs.setResidueSelection(res_sel,true);
+        }
         potContsPairs.searchContacts();
         potContsPairs.writeToFile();
 
@@ -118,6 +127,13 @@ int main(int argc, char *argv[]) {
             cleanedStructure.setName(structureName);
             potContsPairs.setStructure(&cleanedStructure);
             potContsPairs.findContacts();
+            if (binderChainID != "") {
+                Chain* binderChain = cleanedStructure.getChainByID(binderChainID);
+                if (binderChain == NULL) MstUtils::error("Binder chain not found","main");
+                vector<Residue*> res_vec = binderChain->getResidues();
+                set<Residue*> res_sel(res_vec.begin(),res_vec.end());
+                potContsPairs.setResidueSelection(res_sel,true);
+        }
             potContsPairs.searchContacts();
             potContsPairs.writeToFile();
         }

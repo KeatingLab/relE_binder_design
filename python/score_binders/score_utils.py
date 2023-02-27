@@ -493,7 +493,7 @@ class interfaceScorer:
             self.structure_score_file.write('name,score_mode,N_target_res,N_peptide_res,seqstruct_score,struct_score\n')
         for idx in range(len(self.complex_netout)):
             N_target_res = len(self.protein_res[idx])
-            N_peptide_res = len(self.protein_res[idx])
+            N_peptide_res = len(self.peptide_res[idx])
             seqstruct_score = torch.sum(self.binder_scores[idx]).item()
             struct_score = (torch.sum(self.bound_structure_scores[idx]) - self.unbound_structure_score_targettotal).item() # subtract unbound target for comparison
             line = f"{self.complex_netout[idx]['id']},{score_mode},{N_target_res},{N_peptide_res},{seqstruct_score},{struct_score}"

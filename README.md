@@ -12,7 +12,7 @@ Before building `interfaceGenerator` programs, you must download the following d
 
 - "Mosaist" or [MST](https://github.com/Grigoryanlab/Mosaist), a library for working with protein structures and sequences.
 
-- [FreeSASA](https://github.com/mittinatten/freesasa), for calculating the solvent accessible surface area of biomolecules. 
+- [FreeSASA](https://github.com/mittinatten/freesasa), for calculating the solvent accessible surface area of biomolecules. Configure with the following command `./configure --disable-json --disable-xml --disable-threads`. 
 
 - [JSON](https://github.com/nlohmann/json), for working with JSON formatted files.
 
