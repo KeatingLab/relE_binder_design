@@ -65,27 +65,31 @@ def main_array(args, binder_list):
     print(f"binder subset has {len(binder_subset)} members: {binder_subset}")
     main(args,binder_subset,args.batch_index)
 
+# def get_seq_const_from_name(native_seq,target_chain_len,bridge_name):
+#     # if this is an extension of a native fragment, constrain that region's sequence 
+#     # note: this function assumes the region of the native peptide that is to be maintained is at the n-terminus
+#     native_first_match = re.search("4FXE-ARG81-relax-noHyd-(\d+)-(\d+)__B_(\d)_(\d)_(\d)_",bridge_name)
+#     native_second_match = re.search("_(\d)_(\d)_(\d)_4FXE-ARG81-relax-noHyd-(\d+)-(\d+)__B",bridge_name)
+#     native_target_seq = native_seq[:target_chain_len]
+#     if native_first_match:
+#         # c-terminal extension
+#         native_peptide_fragment_len = (int(native_first_match[2]) - int(native_first_match[1]) + 1 - int(native_first_match[3])) # final residue number, first residue number, and amount that was resected from native seed
+#         return residueGroup('A',set([str(x) for x in range(native_peptide_fragment_len+1,native_peptide_fragment_len+50)])) # 50 is arbitrary, just has to be longer than the actual number of residues
+
+#     elif native_second_match:
+#         # nterminal extension
+#         native_peptide_fragment_len = (int(native_second_match[5]) - int(native_second_match[4]) + 1 - int(native_second_match[3])) # final residue number, first residue number, and amount that was resected from native seed
+#         native_peptide_fragment_len = native_peptide_fragment_len - 3 # hacky fix, the wrong sequence was copied at the first three residues
+#         native_peptide_fragment_seq = native_seq[-native_peptide_fragment_len:]
+#         extension_length = len(native_seq) - len(native_peptide_fragment_seq) - target_chain_len
+#         return residueGroup('A',set([str(x) for x in range(1,extension_length)]))
+#     else:
+#         return None
+    
 def get_seq_const_from_name(native_seq,target_chain_len,bridge_name):
-    # if this is an extension of a native fragment, constrain that region's sequence 
-    # note: this function assumes the region of the native peptide that is to be maintained is at the n-terminus
-    native_first_match = re.search("4FXE-ARG81-relax-noHyd-(\d+)-(\d+)__B_(\d)_(\d)_(\d)_",bridge_name)
-    native_second_match = re.search("_(\d)_(\d)_(\d)_4FXE-ARG81-relax-noHyd-(\d+)-(\d+)__B",bridge_name)
-    native_target_seq = native_seq[:target_chain_len]
-    if native_first_match:
-        # c-terminal extension
-        native_peptide_fragment_len = (int(native_first_match[2]) - int(native_first_match[1]) + 1 - int(native_first_match[3])) # final residue number, first residue number, and amount that was resected from native seed
-        return residueGroup('A',set([str(x) for x in range(native_peptide_fragment_len+1,native_peptide_fragment_len+50)])) # 50 is arbitrary, just has to be longer than the actual number of residues
-
-    elif native_second_match:
-        # nterminal extension
-        native_peptide_fragment_len = (int(native_second_match[5]) - int(native_second_match[4]) + 1 - int(native_second_match[3])) # final residue number, first residue number, and amount that was resected from native seed
-        native_peptide_fragment_len = native_peptide_fragment_len - 3 # hacky fix, the wrong sequence was copied at the first three residues
-        native_peptide_fragment_seq = native_seq[-native_peptide_fragment_len:]
-        extension_length = len(native_seq) - len(native_peptide_fragment_seq) - target_chain_len
-        return residueGroup('A',set([str(x) for x in range(1,extension_length)]))
-    else:
-        return None
-
+    # special case: all selected designs have 9 residues of lc3b peptide
+    peptide_length = len(native_seq) - target_chain_len
+    return residueGroup('A',set([str(x) for x in range(peptide_length-9+1,peptide_length+1)]))
 
 def get_native_seq(native_seq,start_res_idx,end_res_idx):
     return native_seq[start_res_idx:end_res_idx+1]
@@ -97,9 +101,9 @@ def main(args, binder_subset, process_number):
         else:
             dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,27500,binder_subset,complex_only=True)
         dataset_iter = iter(dataset)
-    # elif (args.complex_dataset):
-    #     dataset = ComplexScoringDataset(args.complex_dataset)
-    #     dataset_iter = iter(dataset)
+    elif (args.complex_dataset):
+        dataset = ComplexScoringDataset("",binder_subset,args.targetChainID,args.binderChainID,complex_only=True)
+        dataset_iter = iter(dataset)
     else:
         raise ValueError("Must provide either --binder_dataset")
 
@@ -242,15 +246,99 @@ def main(args, binder_subset, process_number):
 
         stop = time.time()
         print('Elapsed time:',stop-start)
+    else:
+        print('Design binders of different complexes')
+        start = stop = 0
+        for _,packaged_complex_data in dataset_iter:
+            nbinders += len(packaged_complex_data['ids'])
+            print(f"loaded {len(packaged_complex_data['ids'])} binders, {nbinders} total")
+            start = time.time()
+            
+            # run COORDinator and generate a Potts Model for each structure in the batch
+            _to_dev(packaged_complex_data, args.dev)
+            max_seq_len = max(packaged_complex_data['seq_lens'].tolist())
+            try:
+                etab, E_idx, _ = terminator(packaged_complex_data, max_seq_len)
+                print('etab: ',etab.shape)
+                print('E_idx:',E_idx.shape)
+            except Exception as e:
+                print(packaged_complex_data['ids'])
+                raise e
+            net_out_list = []
+            for idx in range(etab.shape[0]):
+                l, k = etab[idx].shape[0:2]
+
+                # etab and E_idx were padded to fit in the batch, need to remove the extra positions
+                l_crop = packaged_complex_data['seq_lens'][idx].item()
+                # print('l',l)
+                # print('l_crop',l_crop)
+                # print(idx,'etab_shape',etab[idx].shape)
+                # print(idx,'E_idx_shape',E_idx[idx].shape)
+                # print('etab after slice',etab[idx][:l_crop,:min(l_crop,k)].shape)
+                # print('E_idx after slice',E_idx[idx][:l_crop,:min(l_crop,k)].shape)
+
+                # print('E_idx before slice',E_idx)
+                net_out = {
+                    'id': packaged_complex_data['ids'][idx],
+                    # 'etab': etab[idx].view(l, k, 20, 20).cpu(),
+                    # 'E_idx': E_idx[idx].cpu(),
+                    'etab': etab[idx][:l_crop,:min(l_crop,k)].view(l_crop, min(l_crop,k), 20, 20).cpu(),
+                    'E_idx': E_idx[idx][:l_crop,:min(l_crop,k)].cpu(),
+                    'seq':interfaceScorer.tensorToSeq(packaged_complex_data['seqs'][idx][:l_crop].cpu()),
+                    'res_info':packaged_complex_data['res_info'][idx],
+                    'chain_lens':packaged_complex_data['chain_lens'][idx]
+                }
+                print('id',net_out['id'])
+                print('etab',net_out['etab'].shape)
+                print('E_idx',net_out['E_idx'].shape)
+                print('seq',len(net_out['seq']))
+                print('res_info',len(net_out['res_info']))
+                print('chain_lens',len(net_out['chain_lens']))
+                net_out_list.append(net_out)
+            
+            print(f"Ran the network in eval mode with {len(net_out_list)} structures")
+            # Now optimize each energy table using ILP
+            for net_out in net_out_list:
+                print("Given energy tables and constraints, design sequences")
+                # define constraint sequence
+                native_seq = net_out['seq']
+                print(native_seq)
+                bridge_name = net_out['id']
+                target_chain_len = net_out['chain_lens'][0]
+                print(target_chain_len)
+                print(native_seq[:target_chain_len])
+                target_constraint_seq = native_seq[:target_chain_len] + len(native_seq[target_chain_len:])*'X'
+                print('constraint sequence: ',target_constraint_seq)
+                
+                selRes = get_seq_const_from_name(native_seq,target_chain_len,bridge_name)
+                if selRes == None:
+                    print("could not generate constraint sequence from name, skipping")
+                    continue
+                
+                opt.loadEnergyTable(net_out['etab'],net_out['E_idx'],net_out['res_info'])
+                opt.setConstraints(native_seq,[selRes])
+                opt.sample(params)
+
+                df = opt.getDataFrame()
+                df['name'] = net_out['id']
+                df_list.append(df)
+
+        df = pd.concat(df_list)
+        df.to_csv(f"mcmc_optimization_results_{process_number}.csv")
+
+        stop = time.time()
+        print('Elapsed time:',stop-start)
     
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('')
-    parser.add_argument('--binder_dataset', help='Multi-entry PDB file containing a target structure and various binder structures')
-    # parser.add_argument('--complex_dataset', help='A file where each line is the path to a PDB file describing a complex. NOTE: peptide must come after the protein structure')
-    parser.add_argument('--binder_list', help='A file where each line the name of a binder in the binder_dataset file that should be scored', required=True)
+    parser.add_argument('--binder_dataset', help='Multi-entry PDB file containing a target structure and various binder structures', default='')
+    parser.add_argument('--complex_dataset', help='A file where each line is the path to a PDB file describing a complex. NOTE: peptide must come after the protein structure', default='')
+    parser.add_argument('--binder_list', help='A file where each line the name of a binder in the binder_dataset file that should be scored')
     parser.add_argument('--target_pdb',help='pdb file describing the structure of the target protein', default='')
     # parser.add_argument('--fix_native_seq',help='the name of the region of the peptide that has a fixed sequence',action=)
+    parser.add_argument('--binderChainID',help='',default='')
+    parser.add_argument('--targetChainID',help='',default='')
     parser.add_argument('--model_dir', help='trained model folder', required=True)
     parser.add_argument('--dev', help='device to use', default='cuda:0')
     parser.add_argument('--n',help='the number of cores to use', default=1, type=int)
@@ -271,8 +359,14 @@ if __name__ == '__main__':
     print(f"device: {args.dev}")
 
     # Initialize the special dataloader for binders
-    binder_subset = get_binder_names(args.binder_list)
-    print(f"Will attempt to load {len(binder_subset)} total structures from the binder dataset")
+    if (args.binder_dataset != ""):
+        binder_subset = get_binder_names(args.binder_list)
+        print(f"Will attempt to load {len(binder_subset)} total structures from the binder dataset")
+    elif (args.complex_dataset != ""):
+        binder_subset = get_binder_names(args.complex_dataset)
+        print(f"Will attempt to load {len(binder_subset)} total structures from the binder dataset")
+    else:
+        raise ValueError("Must provide either --binder_dataset or --complex_dataset")
 
     if (args.n > 1):
         main_mp(args,list(binder_subset))

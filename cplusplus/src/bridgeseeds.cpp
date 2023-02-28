@@ -384,7 +384,8 @@ void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
                 cout << "Bridge " << bridgeN << " clashes and will be discarded" << endl;
                 continue;
             }
-            string name = seedA->getName()+"_"+MstUtils::toString(seedA->residueSize())+"_loop-"+MstUtils::toString(bridgeN)+"_"+MstUtils::toString(lenN)+"_"+seedB->getName()+"_"+MstUtils::toString(seedB->residueSize());
+            string name = seedA->getName()+"-"+MstUtils::toString(seedA->residueSize()-seedAOffset)+"-loop_"+MstUtils::toString(bridgeN)+"-"+MstUtils::toString(lenN)+"-"+seedB->getName()+"-"+MstUtils::toString(seedB->residueSize()-seedBOffset);
+            cout << "Seed with name: " << name << endl;
             *bridge_out << "HEADER    " << name << endl;
             selectedBridge->writePDB(*bridge_out);
 

@@ -87,6 +87,10 @@ class interfaceScorer:
         self.peptide_res,
         self.prot_res_info,
         self.pep_res_info) = self.get_res_idx([x['res_info'] for x in self.complex_netout],self.binder_chain_ids)
+        print(self.protein_res[0])
+        print(self.peptide_res[0])
+        print(self.prot_res_info[0])
+        print(self.pep_res_info[0])
         self.prot_res_range = [(x.min(),x.max()+1) for x in self.protein_res]
         self.pep_res_range =  [(x.min(),x.max()+1) for x in self.peptide_res]
         # print('prot_res',self.protein_res)

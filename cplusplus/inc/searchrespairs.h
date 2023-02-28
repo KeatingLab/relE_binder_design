@@ -232,6 +232,34 @@ class findPotentialContactResPairs {
             PCs_to_matches.clear();
         }
 
+        void setpDensityThresh(mstreal val) {
+            cout << "Setting potential contacts probability density threshold to " << val << endl;
+            potContFinder.setpDensityThresh(val);
+        }
+
+        set<pair<Residue*,Residue*>> findContacts() {
+            PCs.clear();
+            for (int chain_id = 0; chain_id < S->chainSize(); chain_id++) {
+                Chain* Ci = &S->getChain(chain_id);
+                for (Residue* Ri : Ci->getResidues()) {
+                    // Get residues + 8 in the chain
+                    int Rj_idx_start = Ri->getResidueIndexInChain() + 1;
+                    for (int Rj_idx = Rj_idx_start; Rj_idx < min(Rj_idx_start+8,int(Ci->residueSize())); Rj_idx++) {
+                        Residue* Rj = &S->getResidue(Rj_idx);
+                        PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
+                    }
+                    set<Residue*> contacting_res = potContFinder.getContactsWithResidue(Ri);
+                    for (Residue* Rj : contacting_res) {
+                        if (Ri->getResidueIndex() < Rj->getResidueIndex()) {
+                            PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
+                        }
+                    }
+                }
+            }
+            cout << "Found " << PCs.size() << " potential contacts" << endl;
+            return PCs;
+        }
+
         void setResidueSelection(set<Residue*> sel, bool neighbors = true) {
             // If neigbors = true, then we will treat all residues in sel *and* their neighbors as central residues
             // meaning that we will report the number of matches for all potential contacts involving those residues
@@ -261,34 +289,6 @@ class findPotentialContactResPairs {
             cout << "Started with " << PCs.size() << " residue pairs, now have " << new_PCs.size() << endl;
 
             PCs = new_PCs;
-        }
-
-        void setpDensityThresh(mstreal val) {
-            cout << "Setting potential contacts probability density threshold to " << val << endl;
-            potContFinder.setpDensityThresh(val);
-        }
-
-        set<pair<Residue*,Residue*>> findContacts() {
-            PCs.clear();
-            for (int chain_id = 0; chain_id < S->chainSize(); chain_id++) {
-                Chain* Ci = &S->getChain(chain_id);
-                for (Residue* Ri : Ci->getResidues()) {
-                    // Get residues + 8 in the chain
-                    int Rj_idx_start = Ri->getResidueIndexInChain() + 1;
-                    for (int Rj_idx = Rj_idx_start; Rj_idx < min(Rj_idx_start+8,int(Ci->residueSize())); Rj_idx++) {
-                        Residue* Rj = &S->getResidue(Rj_idx);
-                        PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
-                    }
-                    set<Residue*> contacting_res = potContFinder.getContactsWithResidue(Ri);
-                    for (Residue* Rj : contacting_res) {
-                        if (Ri->getResidueIndex() < Rj->getResidueIndex()) {
-                            PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
-                        }
-                    }
-                }
-            }
-            cout << "Found " << PCs.size() << " potential contacts" << endl;
-            return PCs;
         }
 
         void searchContacts() {
