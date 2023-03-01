@@ -252,8 +252,8 @@ class findPotentialContactResPairs {
                 for (Residue* Ri : Ci->getResidues()) {
                     // Get residues + 8 in the chain
                     int Rj_idx_start = Ri->getResidueIndexInChain() + 1;
-                    for (int Rj_idx = Rj_idx_start; Rj_idx < min(Rj_idx_start+8,int(Ci->residueSize())); Rj_idx++) {
-                        Residue* Rj = &S->getResidue(Rj_idx);
+                    for (int Rj_idx_in_chain = Rj_idx_start; Rj_idx_in_chain < min(Rj_idx_start+8,int(Ci->residueSize())); Rj_idx_in_chain++) {
+                        Residue* Rj = &Ci->getResidue(Rj_idx_in_chain);
                         if (Ri == Rj) continue;
                         PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
                     }
