@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
         alignF.findMobileFrames();
         cout << "Structure has " << alignF.getNumInteracting() << " residue interactions from this residue type" << endl;
 
-        alignF.writeAlignedInteractingResToPDB(residue_aa+"_interactions.pdb");
+        // alignF.writeAlignedInteractingResToPDB(residue_aa+"_interactions.pdb");
     }
     return 0;
 }

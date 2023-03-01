@@ -8,70 +8,72 @@
 #include "residuecontact.h"
 #include "residueframe.h"
 
-class distance3AngleTable {
-    public:
-        distance3AngleTable(mstreal _maxVal, mstreal _dCut, mstreal _angleCut) : maxVal(_maxVal), dCut(_dCut), angleCut(_angleCut) {
-            nBins = ceil(2*((maxVal)/dCut));
-            cout << "nBins distance: " << nBins << endl;
-            binLength = maxVal/mstreal(nBins-1); // should be an extra bin at the end
-            cout << "binLength: " << binLength << endl;
-            for (int i = 0; i < nBins; i++) {
-                // cout << "angleCut: " << angleCut << endl;
-                cout << "nBins angles: " << 2*ceil(180/angleCut) << endl;
-                bins.emplace_back(0,0,0,180,180,180,ceil(2*180/angleCut));
-            }
-        }
+// class distance3AngleTable {
+//     public:
+//         distance3AngleTable(mstreal _maxVal, mstreal _dCut, mstreal _angleCut) : maxVal(_maxVal), dCut(_dCut), angleCut(_angleCut) {
+//             nBins = ceil(2*((maxVal)/dCut));
+//             cout << "nBins distance: " << nBins << endl;
+//             binLength = maxVal/mstreal(nBins-1); // should be an extra bin at the end
+//             cout << "binLength: " << binLength << endl;
+//             for (int i = 0; i < nBins; i++) {
+//                 // cout << "angleCut: " << angleCut << endl;
+//                 cout << "nBins angles: " << 2*ceil(180/angleCut) << endl;
+//                 bins.emplace_back(0,0,0,180,180,180,ceil(2*180/angleCut));
+//             }
+//         }
 
-        void addResPairToTable(resPair* rP, int tag) {
-            if (rP->getCaDistance() > 0.0) {
-                // int idx = val2Idx(rP->getCaDistance());
-                // cout << "bin idx: " << val2Idx(rP->getCaDistance()) << endl;
-                // cout << bins[idx].getXHigh() << " " << bins[idx].getYHigh() << " " << bins[idx].getZHigh() << endl;
-                bins[val2Idx(rP->getCaDistance())].addPoint(rP->getAngles(),tag);
-                idx2distance[tag] = rP->getCaDistance();
-            }
-        }
+//         void addResPairToTable(resPair* rP, int tag) {
+//             if (rP->getCaDistance() > 0.0) {
+//                 // int idx = val2Idx(rP->getCaDistance());
+//                 // cout << "bin idx: " << val2Idx(rP->getCaDistance()) << endl;
+//                 // cout << bins[idx].getXHigh() << " " << bins[idx].getYHigh() << " " << bins[idx].getZHigh() << endl;
+//                 bins[val2Idx(rP->getCaDistance())].addPoint(rP->getAngles(),tag);
+//                 idx2distance[tag] = rP->getCaDistance();
+//             }
+//         }
 
-        vector<int> searchResPair(resPair* rP);
+//         vector<int> searchResPair(resPair* rP);
 
-        vector<int> getBinIdxRange(mstreal val, mstreal tol) {
-            int lowerBin = val2Idx(val-tol);
-            int higherBin = val2Idx(val+tol);
-            cout << "lowerBin: " << lowerBin << " higherBin: " << higherBin << endl;
-            vector<int> range;
-            for (int i = lowerBin; i <= higherBin; i++) range.push_back(i);
-            return range;
-        }
+//         vector<int> getBinIdxRange(mstreal val, mstreal tol) {
+//             int lowerBin = val2Idx(val-tol);
+//             int higherBin = val2Idx(val+tol);
+//             cout << "lowerBin: " << lowerBin << " higherBin: " << higherBin << endl;
+//             vector<int> range;
+//             for (int i = lowerBin; i <= higherBin; i++) range.push_back(i);
+//             return range;
+//         }
     
-    protected:
-        int val2Idx(mstreal val) {
-            if (bins.empty()) MstUtils::error("Bins are empty","lookup1D::val2Idx");
-            if (val > maxVal) MstUtils::error("Provided value: "+MstUtils::toString(val)+" greater than the maximum value in the table","lookup1D::val2Idx");
-            return floor(val/binLength);
-        }
+//     protected:
+//         int val2Idx(mstreal val) {
+//             if (bins.empty()) MstUtils::error("Bins are empty","lookup1D::val2Idx");
+//             if (val > maxVal) MstUtils::error("Provided value: "+MstUtils::toString(val)+" greater than the maximum value in the table","lookup1D::val2Idx");
+//             return floor(val/binLength);
+//         }
 
-    private:
-        mstreal maxVal;
-        int nBins;
-        mstreal binLength;
-        vector<ProximitySearch> bins;
-        map<int,mstreal> idx2distance;
+//     private:
+//         mstreal maxVal;
+//         int nBins;
+//         mstreal binLength;
+//         vector<ProximitySearch> bins;
+//         map<int,mstreal> idx2distance;
 
-        mstreal dCut;
-        mstreal angleCut;
-};
+//         mstreal dCut;
+//         mstreal angleCut;
+// };
 
 class findResPairs {
     public:
         findResPairs(string resPairDBPath, mstreal _dCut = 0.25, mstreal _angleCut = 30, mstreal _rmsdCut = 0.25);
 
         ~findResPairs() {
-            for (resPair* rP : allResPairs) delete rP;
+            for (resPair* rP : cis_ResPairs) delete rP;
+            for (resPair* rP : cic_ResPairs) delete rP;
             // if (resPairMap != nullptr) delete resPairMap;
         }
 
-        void setQuery(Residue* Ri, Residue* Rj) {
+        void setQuery(Residue* Ri, Residue* Rj, int distance_in_chain) {
             queryRP = resPair(Ri,Rj);
+            query_distance_in_chain = distance_in_chain;
         }
 
         resPair& getQuery() {return queryRP;}
@@ -87,15 +89,19 @@ class findResPairs {
 
     private:
         resPairDB DB;
-        vector<resPair*> allResPairs;
+        vector<resPair*> cis_ResPairs; // contact (close-in-space) res pairs
+        vector<resPair*> cic_ResPairs; // close-in-chain res pairs
         
         // distance3AngleTable* resPairMap = nullptr;
-        ProximitySearch PS;
+        ProximitySearch cis_PS;
+        ProximitySearch cic_PS;
 
         resPair queryRP;
+        int query_distance_in_chain;
         mstreal dCut;
         mstreal angleCut;
         mstreal rmsdCut;
+        int max_distance_in_chain = 8; // residues with greater distance than this will be ignored (contact residues have distance = -1)
 
         vector<resPair*> matches;
         vector<resPair*> verifiedMatches;
@@ -144,7 +150,9 @@ class findkNNResPairs {
                 Residue* Ri = pair.first;
                 Residue* Rj = pair.second;
 
-                resPairSearcher.setQuery(Ri,Rj);
+                int distance_in_chain = -1;
+                if (Ri->getChain() == Rj->getChain()) distance_in_chain = abs(Ri->getResidueIndex() - Rj->getResidueIndex());
+                resPairSearcher.setQuery(Ri,Rj,distance_in_chain);
                 int n_matches;
                 if (noSearch) {
                     n_matches = 0;
@@ -246,6 +254,7 @@ class findPotentialContactResPairs {
                     int Rj_idx_start = Ri->getResidueIndexInChain() + 1;
                     for (int Rj_idx = Rj_idx_start; Rj_idx < min(Rj_idx_start+8,int(Ci->residueSize())); Rj_idx++) {
                         Residue* Rj = &S->getResidue(Rj_idx);
+                        if (Ri == Rj) continue;
                         PCs.insert(pair<Residue*,Residue*>(Ri,Rj));
                     }
                     set<Residue*> contacting_res = potContFinder.getContactsWithResidue(Ri);
@@ -297,7 +306,9 @@ class findPotentialContactResPairs {
                 Residue* Ri = pair.first;
                 Residue* Rj = pair.second;
 
-                resPairSearcher.setQuery(Ri,Rj);
+                int distance_in_chain = -1;
+                if (Ri->getChain() == Rj->getChain()) distance_in_chain = abs(Ri->getResidueIndex() - Rj->getResidueIndex());
+                resPairSearcher.setQuery(Ri,Rj,distance_in_chain);
                 int n_matches;
                 if (noSearch) {
                     n_matches = 0;

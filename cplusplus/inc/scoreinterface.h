@@ -64,7 +64,7 @@ class interfaceSearch {
 
         void writeContactScoresToFile(string name, bool append = true);
         void writeContactMatchesToFile(string name, bool append = true);
-        void writeMatchStructures(string name, alignInteractingFrames& alignF);
+        // void writeMatchStructures(string name, alignInteractingFrames& alignF);
 
         void writeContactPropertyToFile(string name);
 

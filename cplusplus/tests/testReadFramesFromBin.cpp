@@ -28,11 +28,11 @@ int main(int argc, char *argv[]) {
         cout << "frame: " << mF->getName() << endl;
         cout << *mF << endl;
 
-        Structure* intRes = alignF.getAlignedInteractingRes(mF);
-        intRes->writePDB(mF->getName()+".pdb");
+        // Structure* intRes = alignF.getAlignedInteractingRes(mF);
+        // intRes->writePDB(mF->getName()+".pdb");
 
         delete mF;
-        delete intRes;
+        // delete intRes;
     }
     return 0;
 }

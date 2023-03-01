@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 
     // write the match structures
     cout << "Write the match structures..." << endl;
-    interfaceCoverage.writeMatchStructures(complexName+"_match_structures.pdb",alignF);
+    // interfaceCoverage.writeMatchStructures(complexName+"_match_structures.pdb",alignF);
 
     cout << "Done" << endl;
     return 0;

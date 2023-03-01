@@ -127,27 +127,27 @@ void interfaceSearch::writeContactMatchesToFile(string name, bool append) {
     }
 }
 
-void interfaceSearch::writeMatchStructures(string name, alignInteractingFrames& alignF) {
-    fstream pdb_out;
-    MstUtils::openFile(pdb_out, name, fstream::out, "interfaceSearch::writeMatchStructures");
+// void interfaceSearch::writeMatchStructures(string name, alignInteractingFrames& alignF) {
+//     fstream pdb_out;
+//     MstUtils::openFile(pdb_out, name, fstream::out, "interfaceSearch::writeMatchStructures");
 
-    // transform interacting residues
-    for (int i = 0; i < interfaceResidues.size(); i++) {
-        residueFrame* refFrame = complex->getResidueFrame(interfaceResidues[i].first->getResidueIndex());
-        Transform globalToRef = TransformFactory::switchFrames(*refFrame,Frame());
+//     // transform interacting residues
+//     for (int i = 0; i < interfaceResidues.size(); i++) {
+//         residueFrame* refFrame = complex->getResidueFrame(interfaceResidues[i].first->getResidueIndex());
+//         Transform globalToRef = TransformFactory::switchFrames(*refFrame,Frame());
 
-        int count = 0;
-        for (mobileFrame* mFrame : matchingFrames[i]) {
-            Structure *interactingResiduePair = alignF.getAlignedInteractingRes(mFrame);
-            globalToRef.apply(interactingResiduePair);
-            pdb_out << "HEADER    " << interactingResiduePair->getName() << "_match" << count << endl;
-            interactingResiduePair->writePDB(pdb_out);
-            delete interactingResiduePair;
-            count++;
-        }
-    }
-    pdb_out.close();
-}
+//         int count = 0;
+//         for (mobileFrame* mFrame : matchingFrames[i]) {
+//             Structure *interactingResiduePair = alignF.getAlignedInteractingRes(mFrame);
+//             globalToRef.apply(interactingResiduePair);
+//             pdb_out << "HEADER    " << interactingResiduePair->getName() << "_match" << count << endl;
+//             interactingResiduePair->writePDB(pdb_out);
+//             delete interactingResiduePair;
+//             count++;
+//         }
+//     }
+//     pdb_out.close();
+// }
 
 void interfaceSearch::writeContactPropertyToFile(string name) {
     fstream conts_out;
@@ -332,7 +332,7 @@ mstreal residueBackboneBinderScorer::scoreBinder() {
 }
 
 void residueBackboneBinderScorer::scoreContact(pair<Residue*,Residue*> contactingRes, int& totalMatches, int& nativeMatches, mstreal& contactScore) {
-    resPairSearcher.setQuery(contactingRes.first,contactingRes.second);
+    resPairSearcher.setQuery(contactingRes.first,contactingRes.second,-1);
     backboneAtomDistancesPerContact.push_back(resPairSearcher.getQuery().getAllbbAtomDistances());
     timer.start();
     totalMatches = resPairSearcher.searchForMatches();

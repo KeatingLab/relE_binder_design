@@ -49,30 +49,31 @@ int main(int argc, char *argv[]) {
     alignF.setpDensityThresh(pContactsDensityThresh);
     bool read = false;
     if (!op.isGiven("resPair")) {
-        frameDB* frameBin = new frameDB(DBPath,read);
+        MstUtils::error("");
+        // frameDB* frameBin = new frameDB(DBPath,read);
 
-        set<string> aaTypes = SeqToolsExtension::getAANames();
+        // set<string> aaTypes = SeqToolsExtension::getAANames();
 
-        if (potentialContactsPath != "") {
-            alignF.setAA("UNK"); // doesn't matter
-            alignF.findMobileFrames();
-            cout << "protein structure DB has " << alignF.getNumInteracting() << " residue interactions (ignoring residue type)" << endl;
+        // if (potentialContactsPath != "") {
+        //     alignF.setAA("UNK"); // doesn't matter
+        //     alignF.findMobileFrames();
+        //     cout << "protein structure DB has " << alignF.getNumInteracting() << " residue interactions (ignoring residue type)" << endl;
 
-            alignF.writeAlignedInteractingResToPDB("UNK_interactions.pdb",sampleRate);
-            alignF.writeMobileFramesToBin(frameBin);
-        } else {
-            for (string aa : aaTypes) {
-                cout << "amino acid: " << aa << endl;
+        //     // alignF.writeAlignedInteractingResToPDB("UNK_interactions.pdb",sampleRate);
+        //     alignF.writeMobileFramesToBin(frameBin);
+        // } else {
+        //     for (string aa : aaTypes) {
+        //         cout << "amino acid: " << aa << endl;
 
-                alignF.setAA(aa);
-                alignF.findMobileFrames();
-                cout << "protein structure DB has " << alignF.getNumInteracting() << " residue interactions from this residue type" << endl;
+        //         alignF.setAA(aa);
+        //         alignF.findMobileFrames();
+        //         cout << "protein structure DB has " << alignF.getNumInteracting() << " residue interactions from this residue type" << endl;
 
-                alignF.writeAlignedInteractingResToPDB(aa+"_interactions.pdb",sampleRate);
-                alignF.writeMobileFramesToBin(frameBin);
-            }
-        }
-        delete frameBin;
+        //         alignF.writeAlignedInteractingResToPDB(aa+"_interactions.pdb",sampleRate);
+        //         alignF.writeMobileFramesToBin(frameBin);
+        //     }
+        // }
+        // delete frameBin;
     } else {
         resPairDB* rpBin = new resPairDB(DBPath,read);
 
@@ -83,7 +84,7 @@ int main(int argc, char *argv[]) {
             alignF.findMobileFrames();
             cout << "protein structure DB has " << alignF.getNumInteracting() << " residue interactions (ignoring residue type)" << endl;
 
-            alignF.writeAlignedInteractingResToPDB("UNK_interactions.pdb",sampleRate);
+            // alignF.writeAlignedInteractingResToPDB("UNK_interactions.pdb",sampleRate);
             alignF.writeResiduePairsToBin(rpBin);
         } else {
             for (string aa : aaTypes) {
@@ -93,7 +94,7 @@ int main(int argc, char *argv[]) {
                 alignF.findMobileFrames();
                 cout << "protein structure DB has " << alignF.getNumInteracting() << " residue interactions from this residue type" << endl;
 
-                alignF.writeAlignedInteractingResToPDB(aa+"_interactions.pdb",sampleRate);
+                // alignF.writeAlignedInteractingResToPDB(aa+"_interactions.pdb",sampleRate);
                 alignF.writeResiduePairsToBin(rpBin);
             }
         }

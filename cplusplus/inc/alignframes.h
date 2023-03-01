@@ -110,7 +110,7 @@ public:
     }
     
     ~alignInteractingFrames() {
-        for (mobileFrame* frame : allInteractingFrames) delete frame;
+        // for (mobileFrame* frame : allInteractingFrames) delete frame;
         if (PC != nullptr) delete PC;
     }
 
@@ -124,12 +124,12 @@ public:
 
     void findMobileFrames();
 
-    int getNumInteracting() { return allInteractingFrames.size(); }
+    int getNumInteracting() { return allInteractingRes.size(); }
 
-    Structure *getAlignedInteractingRes(int i);
-    Structure *getAlignedInteractingRes(mobileFrame* frame);
-    void writeAlignedInteractingResToPDB(string pdbPath, mstreal subsampleRate = 0.01);
-    void writeMobileFramesToBin(frameDB* frameBin);
+    // Structure *getAlignedInteractingRes(int i);
+    // Structure *getAlignedInteractingRes(mobileFrame* frame);
+    // void writeAlignedInteractingResToPDB(string pdbPath, mstreal subsampleRate = 0.01);
+    // void writeMobileFramesToBin(frameDB* frameBin);
     void writeResiduePairsToBin(resPairDB* rPBin);
     void writeInteractionData(string pathPrefix);
 
@@ -175,7 +175,7 @@ private:
     string aaName = "UNK";
     Frame refFrame;
 
-    vector<mobileFrame*> allInteractingFrames;
+    // vector<mobileFrame*> allInteractingFrames;
     vector<resPair> allInteractingRes;
     
     Transform tf;
@@ -226,7 +226,7 @@ class frameDB {
 class resPair {
     public:
         resPair() {};
-        resPair(Residue* Ri, Residue* Rj, int _target = -1);
+        resPair(Residue* Ri, Residue* Rj, int _target = -1, int _distance_in_chain = -1);
         ~resPair() {
             if (ownsAtoms) for (Atom* A: resPairAtoms) delete A;
         }
@@ -234,10 +234,11 @@ class resPair {
             target = rP.target;
             res_i = rP.res_i;
             res_j = rP.res_j;
+            distance_in_chain = rP.distance_in_chain;
             res_i_aa = rP.res_i_aa;
             res_j_aa = rP.res_j_aa;
             CaDistance = rP.CaDistance;
-            resFrameBasisVectorAngles = rP.resFrameBasisVectorAngles;
+            // resFrameBasisVectorAngles = rP.resFrameBasisVectorAngles;
             bbAtomDistances = rP.bbAtomDistances;
             ownsAtoms = rP.ownsAtoms;
             if (ownsAtoms) {
@@ -252,10 +253,11 @@ class resPair {
             target = rP.target;
             res_i = rP.res_i;
             res_j = rP.res_j;
+            distance_in_chain = rP.distance_in_chain;
             res_i_aa = rP.res_i_aa;
             res_j_aa = rP.res_j_aa;
             CaDistance = rP.CaDistance;
-            resFrameBasisVectorAngles = rP.resFrameBasisVectorAngles;
+            // resFrameBasisVectorAngles = rP.resFrameBasisVectorAngles;
             bbAtomDistances = rP.bbAtomDistances;
             ownsAtoms = rP.ownsAtoms;
             if (ownsAtoms) {
@@ -272,12 +274,13 @@ class resPair {
         int getTarget() {return target;}
         int getResI() {return res_i;}
         int getResJ() {return res_j;}
+        int getDistanceInChain() {return distance_in_chain;}
         res_t getResIAAIndex() {return res_i_aa;}
         res_t getResJAAIndex() {return res_j_aa;}
         mstreal getCaDistance() {return CaDistance;}
         CartesianPoint getbbAtomDistances() {return bbAtomDistances;}
         CartesianPoint getAllbbAtomDistances();
-        CartesianPoint getAngles() {return resFrameBasisVectorAngles;}
+        // CartesianPoint getAngles() {return resFrameBasisVectorAngles;}
         vector<Atom*> getAtoms() {return resPairAtoms;} //Careful! The atoms are stripped of all info other than coordinates
 
         string getName() {
@@ -295,6 +298,7 @@ private:
     int target = -1;
     int res_i = -1;
     int res_j = -1;
+    int distance_in_chain = -1;
     res_t res_i_aa = SeqTools::unknownIdx();
     res_t res_j_aa = SeqTools::unknownIdx();
 
@@ -304,7 +308,7 @@ private:
     */
     vector<Atom*> resPairAtoms;
     mstreal CaDistance; // Ri:Ca - Rj:Ca
-    CartesianPoint resFrameBasisVectorAngles; // the angle between each pair of residue frame basis vectors
+    // CartesianPoint resFrameBasisVectorAngles; // the angle between each pair of residue frame basis vectors
     CartesianPoint bbAtomDistances; // Ri:N - Rj:N, Ri:Ca-Rj:Ca, Ri:C-Rj:C (3 distances. Oxygen not considered)
     bool ownsAtoms = false;
 
@@ -344,7 +348,7 @@ class resPairDB {
 
     private:
         string resPairDBPath = "";
-        int version = 1;
+        int version = 2;
         bool readMode = true;
         bool resPairAdded = false;
 

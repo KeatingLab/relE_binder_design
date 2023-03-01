@@ -144,11 +144,13 @@ void alignInteractingFrames::findMobileFrames() {
     }
     // if (aa == SeqTools::unknownIdx())
     //     MstUtils::error("Must set amino acid before finding interacting residues", "alignInteractingFrames::findInteractingRes");
-    allInteractingFrames.clear();
+    // allInteractingFrames.clear();
     allInteractingRes.clear();
     // interactionData[aa] = map<int,int>();
     // map<int,int>& interactionDataForAA = interactionData[aa];
     // for (int i = 0; i <= 30; i++) interactionDataForAA[i] = 0;
+    int cis_count = 0;
+    int cic_count = 0;
     for (int target_idx = 0; target_idx < db.numTargets(); target_idx++) {
         const augmentedStructure& aS = db.getTarget(target_idx);
         PC->setTargetResidues(aS.getResidues());
@@ -172,12 +174,14 @@ void alignInteractingFrames::findMobileFrames() {
             // interactionDataForAA[contacting_res.size()]++;
             for (int res_j : contacting_res) {
                 Residue* Rj = &aS.getResidue(res_j);
-                allInteractingRes.emplace_back(Ri,Rj,target_idx);
-                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, res_i_aa);
-                residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
-                Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
-                rFi_to_ref.apply(*frame);
-                allInteractingFrames.push_back(frame);
+                int distance_in_chain = -1; // interaction via contact (long range)
+                allInteractingRes.emplace_back(Ri,Rj,target_idx,distance_in_chain);
+                cis_count++;
+                // mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, res_i_aa);
+                // residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
+                // Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
+                // rFi_to_ref.apply(*frame);
+                // allInteractingFrames.push_back(frame);
                 if (verbose) cout << target_idx << "," << res_i << "," << res_j << endl;
             }
 
@@ -187,64 +191,68 @@ void alignInteractingFrames::findMobileFrames() {
             int chain_stop_res_idx = chain_start_res_idx + Ri->getChain()->residueSize() - 1;
             if (verbose) cout << "chain start: " << chain_start_res_idx << " chain stop: " << chain_stop_res_idx << endl;
             for (int res_j = max(chain_start_res_idx,res_i - flanking_res); res_j <= min(chain_stop_res_idx,res_i + flanking_res); res_j++) {
+                if (res_i == res_j) continue;
                 // randomly skip some flanking residues in order to keep the total number from exploding
                 if (subsample_flanking >= 0) if (MstUtils::randUnit() > subsample_flanking) continue;
                 Residue* Rj = &aS.getResidue(res_j);
-                allInteractingRes.emplace_back(Ri,Rj,target_idx);
-                mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, res_i_aa);
-                residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
-                Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
-                rFi_to_ref.apply(*frame);
-                allInteractingFrames.push_back(frame);
+                int distance_in_chain = abs(res_j - res_i);
+                allInteractingRes.emplace_back(Ri,Rj,target_idx,distance_in_chain);
+                cic_count++;
+                // mobileFrame* frame = new mobileFrame(Rj, target_idx, res_i, res_j, res_i_aa);
+                // residueFrame *rFi = db.getResidueFrame(frame->getTarget(),frame->getResI());
+                // Transform rFi_to_ref = TransformFactory::switchFrames(refFrame, *rFi);
+                // rFi_to_ref.apply(*frame);
+                // allInteractingFrames.push_back(frame);
                 if (verbose) cout << target_idx << "," << res_i << "," << res_j << endl;
             }
         }
     }
+    cout << "In total, found " << cis_count << " close-in-space contact res pairs and " << cic_count << " close-in-chain contact res pairs" << endl;
 }
 
-Structure *alignInteractingFrames::getAlignedInteractingRes(int i) {
-    if ((i < 0) || (i >= allInteractingFrames.size())) MstUtils::error("Provided value " + MstUtils::toString(i) + " is out of range: (0," + MstUtils::toString(allInteractingFrames.size() - 1), "alignInteractingFrames::getAlignedInteractingRes");
-    mobileFrame* frame = allInteractingFrames[i];
+// Structure *alignInteractingFrames::getAlignedInteractingRes(int i) {
+//     if ((i < 0) || (i >= allInteractingFrames.size())) MstUtils::error("Provided value " + MstUtils::toString(i) + " is out of range: (0," + MstUtils::toString(allInteractingFrames.size() - 1), "alignInteractingFrames::getAlignedInteractingRes");
+//     mobileFrame* frame = allInteractingFrames[i];
 
-    return getAlignedInteractingRes(frame);
-};
+//     return getAlignedInteractingRes(frame);
+// };
 
-Structure *alignInteractingFrames::getAlignedInteractingRes(mobileFrame* frame) {
-    // get the residues from the target structure
-    Residue* rI = db.getResidue(frame->getTarget(),frame->getResI());
-    Residue* rJ = db.getResidue(frame->getTarget(),frame->getResJ());
+// Structure *alignInteractingFrames::getAlignedInteractingRes(mobileFrame* frame) {
+//     // get the residues from the target structure
+//     Residue* rI = db.getResidue(frame->getTarget(),frame->getResI());
+//     Residue* rJ = db.getResidue(frame->getTarget(),frame->getResJ());
 
-    Structure *interactingResiduePair = constructStructureFromResiduePair(rI, rJ, frame);
+//     Structure *interactingResiduePair = constructStructureFromResiduePair(rI, rJ, frame);
 
-    return changeFrameToRef(interactingResiduePair,frame);
-}
+//     return changeFrameToRef(interactingResiduePair,frame);
+// }
 
-void alignInteractingFrames::writeAlignedInteractingResToPDB(string pdbPath, mstreal subsampleRate)
-{
-    // open file
-    fstream pdb_out;
-    MstUtils::openFile(pdb_out, pdbPath, fstream::out, "alignInteractingFrames::writeAlignedInteractingResToPDB");
+// void alignInteractingFrames::writeAlignedInteractingResToPDB(string pdbPath, mstreal subsampleRate)
+// {
+//     // open file
+//     fstream pdb_out;
+//     MstUtils::openFile(pdb_out, pdbPath, fstream::out, "alignInteractingFrames::writeAlignedInteractingResToPDB");
 
-    // transform interacting residues
-    for (int i = 0; i < getNumInteracting(); i++)
-    {
-        if (MstUtils::randUnit() > subsampleRate) continue;
-        Structure *interactingResiduePair = getAlignedInteractingRes(i);
+//     // transform interacting residues
+//     for (int i = 0; i < getNumInteracting(); i++)
+//     {
+//         if (MstUtils::randUnit() > subsampleRate) continue;
+//         Structure *interactingResiduePair = getAlignedInteractingRes(i);
 
-        // write to file
-        pdb_out << "HEADER    " << interactingResiduePair->getName() << endl;
-        interactingResiduePair->writePDB(pdb_out);
+//         // write to file
+//         pdb_out << "HEADER    " << interactingResiduePair->getName() << endl;
+//         interactingResiduePair->writePDB(pdb_out);
 
-        delete interactingResiduePair;
-    }
-    pdb_out.close();
-}
+//         delete interactingResiduePair;
+//     }
+//     pdb_out.close();
+// }
 
-void alignInteractingFrames::writeMobileFramesToBin(frameDB* frameBin) {
-    for (mobileFrame* mF : allInteractingFrames) {
-        frameBin->appendFrame(mF);
-    }
-}
+// void alignInteractingFrames::writeMobileFramesToBin(frameDB* frameBin) {
+//     for (mobileFrame* mF : allInteractingFrames) {
+//         frameBin->appendFrame(mF);
+//     }
+// }
 
 void alignInteractingFrames::writeResiduePairsToBin(resPairDB* rPBin) {
     for (int i = 0; i < allInteractingRes.size(); i++) {
@@ -463,7 +471,7 @@ mobileFrame* frameDB::readNextFileSection() {
 
 /* --- --- --- --- --- resPair --- --- --- --- --- */
 
-resPair::resPair(Residue* Ri, Residue* Rj, int _target) : target(_target) {
+resPair::resPair(Residue* Ri, Residue* Rj, int _target, int _distance_in_chain) : target(_target), distance_in_chain(_distance_in_chain) {
     res_i = Ri->getResidueIndex();
     res_j = Rj->getResidueIndex();
     res_i_aa = SeqTools::aaToIdx(Ri->getName());
@@ -520,19 +528,19 @@ void resPair::computeInternalRepresentation() {
     CartesianPoint Ri_z = Ri.getZ();
     CartesianPoint Rj_z = Rj.getZ();
 
-    // Compute the cosine angle between each pair of basis vectors
-    mstreal xCosSim = Ri_x.cosineAngle(Rj_x);
-    mstreal yCosSim = Ri_y.cosineAngle(Rj_y);
-    mstreal zCosSim = Ri_z.cosineAngle(Rj_z);
+    // // Compute the cosine angle between each pair of basis vectors
+    // mstreal xCosSim = Ri_x.cosineAngle(Rj_x);
+    // mstreal yCosSim = Ri_y.cosineAngle(Rj_y);
+    // mstreal zCosSim = Ri_z.cosineAngle(Rj_z);
 
-    mstreal xAngle, yAngle, zAngle;
-    if (xCosSim == 1.0) xAngle = 0.0;
-    else xAngle = (180/M_PI)*acos(xCosSim);
-    if (yCosSim == 1.0) yAngle = 0.0;
-    else yAngle = (180/M_PI)*acos(yCosSim);
-    if (zCosSim == 1.0) zAngle = 0.0;
-    else zAngle = (180/M_PI)*acos(zCosSim);
-    resFrameBasisVectorAngles = CartesianPoint(xAngle,yAngle,zAngle);
+    // mstreal xAngle, yAngle, zAngle;
+    // if (xCosSim == 1.0) xAngle = 0.0;
+    // else xAngle = (180/M_PI)*acos(xCosSim);
+    // if (yCosSim == 1.0) yAngle = 0.0;
+    // else yAngle = (180/M_PI)*acos(yCosSim);
+    // if (zCosSim == 1.0) zAngle = 0.0;
+    // else zAngle = (180/M_PI)*acos(zCosSim);
+    // resFrameBasisVectorAngles = CartesianPoint(xAngle,yAngle,zAngle);
     // if (std::isnan(xAngle) || std::isnan(yAngle) || std::isnan(zAngle)) {
     //     cout << "Ca distance: " << getCaDistance() << endl;
     //     cout << "Ri_x: " << Ri_x << endl;
@@ -565,6 +573,8 @@ void resPair::writeData(ostream& ofs) {
     MstUtils::writeBin(ofs,res_i);
     MstUtils::writeBin(ofs,res_j);
 
+    MstUtils::writeBin(ofs,distance_in_chain);
+
     // write res types
     MstUtils::writeBin(ofs,res_i_aa);
     MstUtils::writeBin(ofs,res_j_aa);
@@ -580,6 +590,8 @@ void resPair::readData(istream& ifs) {
     MstUtils::readBin(ifs, target);
     MstUtils::readBin(ifs, res_i);
     MstUtils::readBin(ifs, res_j);
+
+    MstUtils::readBin(ifs, distance_in_chain);
 
     MstUtils::readBin(ifs, res_i_aa);
     MstUtils::readBin(ifs, res_j_aa);

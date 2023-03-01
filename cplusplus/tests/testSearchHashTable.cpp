@@ -107,13 +107,13 @@ int main(int argc, char *argv[]) {
         cout << "Match frame: " << endl;
         printFrameInfo(frame);
 
-        Structure* res = alignF.getAlignedInteractingRes(frame);
-        res->writePDB(res->getName()+"_inglobalframe.pdb");
-        // align to the original query
-        tf = TransformFactory::switchFrames(*frameI,Frame());
-        tf.apply(res);
-        res->writePDB(res->getName()+".pdb");
-        delete res;
+        // Structure* res = alignF.getAlignedInteractingRes(frame);
+        // res->writePDB(res->getName()+"_inglobalframe.pdb");
+        // // align to the original query
+        // tf = TransformFactory::switchFrames(*frameI,Frame());
+        // tf.apply(res);
+        // res->writePDB(res->getName()+".pdb");
+        // delete res;
         count++;
     }
     delete query;
