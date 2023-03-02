@@ -685,6 +685,7 @@ void potentialContacts::setTargetResidues(vector<Residue*> _targetResidues) {
     }
     contacts.clear();
     contactMap.clear();
+    contactType.clear();
     nonDesignablePairs.clear();
 }
 
@@ -695,6 +696,7 @@ void potentialContacts::setBinderResidues(vector<Residue*> _binderResidues) {
     for (Residue* R : binderResidues) binderCA.push_back(R->findAtom("CA",true));
     contacts.clear();
     contactMap.clear();
+    contactType.clear();
     nonDesignablePairs.clear();
 }
 
@@ -775,9 +777,11 @@ vector<pair<Residue*,Residue*>> potentialContacts::getContacts(bool simpleDistan
                     if (checkDesignability) designable = isDesignable(targetRes,binderRes);
                 }
                 if (SSContact || SSContact || BBContact) {
-                    contacts.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
+                    pair<Residue*,Residue*> resPair(targetRes,binderRes);
+                    contacts.push_back(resPair);
                     contactMap[targetRes].insert(binderRes);
                     contactMap[binderRes].insert(targetRes);
+                    contactType[resPair] = potentialContactType(SSContact,SBContact,BBContact);
                 }
                 if (checkDesignability && !designable) nonDesignablePairs.push_back(pair<Residue*,Residue*>(targetRes,binderRes));
             }
@@ -848,6 +852,15 @@ bool potentialContacts::isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityT
     mstreal CaCbtoRiCaRjCaAngle = getCaCbtoRiCaRjCaAngle(Ri,Rj); 
     mstreal sbDensity = sidechainBackboneDesignabilityProbabilityDensity[aaIdx].getDensity(CaCbtoRiCaRjCaAngle,CaDistance);
     return (ssDensity >= pDensityThresh)&&(sbDensity >= pDensityThresh);
+}
+
+potentialContactType potentialContacts::getContactType(Residue* Ri, Residue* Rj, bool strict) {
+    pair<Residue*,Residue*> resPair(Ri,Rj);
+    if (contactType.find(resPair) == contactType.end()) {
+        if (strict) MstUtils::error("Could not find potential contact type for residue pair with indices ("+MstUtils::toString(Ri->getResidueIndex())+","+MstUtils::toString(Rj->getResidueIndex())+")","potentiaContacts::getContactType");
+        else return potentialContactType();
+    }
+    return contactType[resPair];
 }
 
 CartesianPoint potentialContacts::getCbFromRes(Residue* R) {

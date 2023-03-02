@@ -165,6 +165,14 @@ private:
     set<string> bbAtomNames = {"N","CA","C","O"};
 };
 
+struct potentialContactType {
+    potentialContactType() {};
+    potentialContactType(bool _SS, bool _SB, bool _BB) : SS(_SS), SB(_SB), BB(_BB) {;}
+    bool SS = false;
+    bool SB = false;
+    bool BB = false;
+};
+
 class potentialContacts {
     /* Identifies pairs of residues that are positioned such that they could form a contact
      
@@ -208,7 +216,7 @@ class potentialContacts {
         bool isPotentialSBContact(Residue* Ri, Residue* Rj, mstreal pDensityThresh, bool checkReverseDirection = false);
         bool isPotentialBBContact(Residue* Ri, Residue* Rj);
         bool isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.0025);
-        // bool isDesignable(Residue* Ri, Residue* Rj, mstreal pDensityThresh = 0.001);
+        potentialContactType getContactType(Residue* Ri, Residue* Rj, bool strict = false);
 
         /**s
          * @brief Constructs a idealized Cb coordinates given the backbone atoms of a residue
@@ -288,6 +296,7 @@ class potentialContacts {
         int ignoreDistance = 8; //interacting residues this close in the chain will be ignored
 
         vector<pair<Residue*,Residue*>> contacts;
+        map<pair<Residue*,Residue*>,potentialContactType> contactType;
         map<Residue*,set<Residue*>> contactMap;
 
         vector<pair<Residue*,Residue*>> nonDesignablePairs;

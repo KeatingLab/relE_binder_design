@@ -302,6 +302,7 @@ class findPotentialContactResPairs {
 
         void searchContacts() {
             if (PCs.empty()) MstUtils::error("Cannot search for matches until contacts have been defined");
+            cout << "noSearch = " << noSearch << endl;
             for (pair<Residue*,Residue*> pair : PCs) {
                 Residue* Ri = pair.first;
                 Residue* Rj = pair.second;
@@ -309,12 +310,8 @@ class findPotentialContactResPairs {
                 int distance_in_chain = -1;
                 if (Ri->getChain() == Rj->getChain()) distance_in_chain = abs(Ri->getResidueIndex() - Rj->getResidueIndex());
                 resPairSearcher.setQuery(Ri,Rj,distance_in_chain);
-                int n_matches;
-                if (noSearch) {
-                    n_matches = 0;
-                } else {
-                    n_matches = resPairSearcher.searchForMatches();
-                }
+                int n_matches = 0;
+                if (!noSearch) n_matches = resPairSearcher.searchForMatches();
                 PCs_to_matches[pair] = n_matches;
             }
         }
@@ -322,15 +319,37 @@ class findPotentialContactResPairs {
         void writeToFile() {
             fstream out;
             MstUtils::openFile(out,S->getName()+"_respair_matches.csv",fstream::out);
-            out << "Ri_resIdx,Ri_chainID,Ri_resnum,Rj_resIdx,Rj_chainID,Rj_resnum,Ca_distance,n_matches" << endl;
+            out << "Ri_resIdx,Ri_chainID,Ri_resnum,Rj_resIdx,Rj_chainID,Rj_resnum,same_chain,distance_in_chain,Ca_distance,contact_type,n_matches" << endl;
             for (pair<Residue*,Residue*> pair : PCs) {
                 // store in both directions, for convenience
                 Residue* Ri = pair.first;
                 Residue* Rj = pair.second;
 
+                // non-directional values
+                bool same_chain = Ri->getChain() == Rj->getChain();
+                int distance_in_chain = same_chain ? abs(Ri->getResidueIndex() - Rj->getResidueIndex()) : -1;
+                mstreal Ca_distance = Ri->findAtom("CA")->getCoor().distance(Rj->findAtom("CA")->getCoor());
+                string contact_type_name = "";
+                potentialContactType contact_type = potContFinder.getContactType(Ri,Rj);
+
+                /* 
+                The premise is that a backbone-mediated interaction is "stronger" than a sidechain one.
+                I don't mean this in an energetic sense, per-se, more so that an interaction via backbone atoms
+                (e.g. hydrogen-bonding) is direct and therefore imposes a strong constraint on the relative geometry
+                between the residues. In contrast, an interaction through sidechains has many atoms in between (which can wiggle), meaning there is 
+                less constraint on relative geometry of the backbone atoms.
+                */
+                if (contact_type.BB == true) {
+                    contact_type_name = "BB";
+                } else if ((contact_type.SS == true)||(contact_type.SB)) {
+                    contact_type_name = "SS";
+                } else {
+                    contact_type_name = "none";
+                }
+
                 out << Ri->getResidueIndex() << "," << Ri->getChainID() << "," << Ri->getNum() << ",";
                 out << Rj->getResidueIndex() << "," << Rj->getChainID() << "," << Rj->getNum() << ",";
-                out << Ri->findAtom("CA")->getCoor().distance(Rj->findAtom("CA")->getCoor()) << ",";
+                out << same_chain << "," << distance_in_chain << "," << Ca_distance << "," << contact_type_name << ",";
                 out << PCs_to_matches[pair] << endl;
 
                 Ri = pair.second;
@@ -338,13 +357,13 @@ class findPotentialContactResPairs {
 
                 out << Ri->getResidueIndex() << "," << Ri->getChainID() << "," << Ri->getNum() << ",";
                 out << Rj->getResidueIndex() << "," << Rj->getChainID() << "," << Rj->getNum() << ",";
-                out << Ri->findAtom("CA")->getCoor().distance(Rj->findAtom("CA")->getCoor()) << ",";
+                out << same_chain << "," << distance_in_chain << "," << Ca_distance << "," << contact_type_name << ",";
                 out << PCs_to_matches[pair] << endl;
             }
         }
 
     private:
-        bool noSearch = false;
+        bool noSearch;
 
         potentialContacts potContFinder;
         findResPairs resPairSearcher;

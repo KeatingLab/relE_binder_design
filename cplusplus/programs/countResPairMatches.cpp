@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     bool verbose = op.isGiven("verbose");
     int worker = op.getInt("worker",1);
     int nWorkers = op.getInt("nWorkers",1);
-    bool noSearch = op.getBool("noSearch",false);
+    bool noSearch = op.isGiven("noSearch");
 
     // findkNNResPairs kNNresPairs(resPairDB,kNeighbors,noSearch);
     findPotentialContactResPairs potContsPairs(resPairDB,potentialContactsPath,noSearch);
