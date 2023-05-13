@@ -9,7 +9,8 @@
 
 inputStructureList=PATH/TO/STRUCTURE
 relaxScript=PATH/TO/SCRIPT
-args="-relax:constrain_relax_to_native_coords"
+args=""
+#args="-relax:constrain_relax_to_native_coords"
 
 rosettaDir=/data1/groups/keatinglab/rosetta/rosetta_src_2021.16.61629_bundle/main
 #relaxScript=$rosettaDir/database/sampling/relax_scripts/InterfaceRelax2019.txt

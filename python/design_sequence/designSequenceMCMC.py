@@ -86,10 +86,34 @@ def main_array(args, binder_list):
 #     else:
 #         return None
     
-def get_seq_const_from_name(native_seq,target_chain_len,bridge_name):
-    # special case: all selected designs have 9 residues of lc3b peptide
+# def get_seq_const_from_name(native_seq,target_chain_len,bridge_name):
+#     # special case: all selected designs have 9 residues of lc3b peptide
+#     peptide_length = len(native_seq) - target_chain_len
+#     return residueGroup('A',set([str(x) for x in range(peptide_length-9+1,peptide_length+1)]))
+
+
+def get_seq_const_from_name(native_seq,target_chain_len,bridge_name,fixedSeedName):
+    # find the fixed seed + its length in the bridge name and then select the VARIABLE residues
     peptide_length = len(native_seq) - target_chain_len
-    return residueGroup('A',set([str(x) for x in range(peptide_length-9+1,peptide_length+1)]))
+
+     # search for native in name
+    match = re.search(fixedSeedName+r'-(\d+)',bridge_name)
+    if match is None:
+        raise ValueError("This doesn't look like a RelB helix extension")
+            
+    # what terminus is the extension from?
+    nterm_ext = True if match.span()[1] >= len(bridge_name) else False
+    # how long is the native section?
+    native_frag_len = int(match[1])
+    var_len = peptide_length - native_frag_len
+    # which residue should we start from?
+    start_res = 1 if nterm_ext else native_frag_len + 1
+
+    print(f"Native {'n-terminal' if nterm_ext else 'c-terminal'} extension with {var_len} residues ({peptide_length} in peptide total). Variable region starting from {start_res}")
+
+    selRes = residueGroup('0',set([str(x) for x in range(start_res,(start_res+var_len))]))
+    print(selRes)
+    return selRes
 
 def get_native_seq(native_seq,start_res_idx,end_res_idx):
     return native_seq[start_res_idx:end_res_idx+1]
@@ -97,12 +121,12 @@ def get_native_seq(native_seq,start_res_idx,end_res_idx):
 def main(args, binder_subset, process_number):
     if (args.binder_dataset):
         if args.dev == 'cpu':
-            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,500,binder_subset,complex_only=True)
+            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,500,binder_subset,mode="complex_only")
         else:
-            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,27500,binder_subset,complex_only=True)
+            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,27500,binder_subset,mode="complex_only")
         dataset_iter = iter(dataset)
     elif (args.complex_dataset):
-        dataset = ComplexScoringDataset("",binder_subset,args.targetChainID,args.binderChainID,complex_only=True)
+        dataset = ComplexScoringDataset("",binder_subset,args.targetChainID,args.binderChainID,mode="complex_only")
         dataset_iter = iter(dataset)
     else:
         raise ValueError("Must provide either --binder_dataset")
@@ -159,7 +183,7 @@ def main(args, binder_subset, process_number):
     torch.set_grad_enabled(False)
 
     opt = simulatedAnnealingMCMC()
-    params = mcmcParams(args.n_it,args.n_cyc,args.Ti,args.Tf,args.seed,args.complexity_weight,args.early_stopping)
+    params = mcmcParams(int(args.n_it),int(args.n_cyc),float(args.Ti),float(args.Tf),int(args.seed),float(args.complexity_weight),int(args.early_stopping))
 
     # Run the model in eval mode, generate energy tables, and perform optimization
     nbinders = 0
@@ -228,16 +252,19 @@ def main(args, binder_subset, process_number):
                 target_constraint_seq = native_seq[:target_chain_len] + len(native_seq[target_chain_len:])*'X'
                 print('constraint sequence: ',target_constraint_seq)
                 
-                selRes = get_seq_const_from_name(native_seq,target_chain_len,bridge_name)
-                if selRes == None:
-                    print("could not generate constraint sequence from name, skipping")
-                    continue
+                if args.fixed_fragment_name != "":
+                    selRes = get_seq_const_from_name(native_seq,target_chain_len,bridge_name,args.fixed_fragment_name)
+                    if selRes == None:
+                        print("Could not generate constraint sequence from name, skipping")
+                        continue
+                else:
+                    selRes = residueGroup(args.binderChainID)
                 
                 opt.loadEnergyTable(net_out['etab'],net_out['E_idx'],net_out['res_info'])
                 opt.setConstraints(native_seq,[selRes])
-                opt.sample(params)
+                opt.sample(params,int(args.early_stopping),verbose=True)
 
-                df = opt.getDataFrame()
+                df = opt.getDataFrame(native_seq,0)
                 df['name'] = net_out['id']
                 df_list.append(df)
 
@@ -310,16 +337,19 @@ def main(args, binder_subset, process_number):
                 target_constraint_seq = native_seq[:target_chain_len] + len(native_seq[target_chain_len:])*'X'
                 print('constraint sequence: ',target_constraint_seq)
                 
-                selRes = get_seq_const_from_name(native_seq,target_chain_len,bridge_name)
-                if selRes == None:
-                    print("could not generate constraint sequence from name, skipping")
-                    continue
+                if args.fixed_fragment_name != "":
+                    selRes = get_seq_const_from_name(native_seq,target_chain_len,bridge_name,args.fixed_fragment_name)
+                    if selRes == None:
+                        print("Could not generate constraint sequence from name, skipping")
+                        continue
+                else:
+                    selRes = residueGroup(args.binderChainID)
                 
                 opt.loadEnergyTable(net_out['etab'],net_out['E_idx'],net_out['res_info'])
                 opt.setConstraints(native_seq,[selRes])
-                opt.sample(params)
+                opt.sample(params,int(args.early_stopping),verbose=True)
 
-                df = opt.getDataFrame()
+                df = opt.getDataFrame(native_seq,0)
                 df['name'] = net_out['id']
                 df_list.append(df)
 
@@ -337,6 +367,7 @@ if __name__ == '__main__':
     parser.add_argument('--binder_list', help='A file where each line the name of a binder in the binder_dataset file that should be scored')
     parser.add_argument('--target_pdb',help='pdb file describing the structure of the target protein', default='')
     # parser.add_argument('--fix_native_seq',help='the name of the region of the peptide that has a fixed sequence',action=)
+    parser.add_argument('--fixed_fragment_name',help='the name of the region of the design that should maintain its fixed sequence', default='')
     parser.add_argument('--binderChainID',help='',default='')
     parser.add_argument('--targetChainID',help='',default='')
     parser.add_argument('--model_dir', help='trained model folder', required=True)
@@ -354,6 +385,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(sys.argv)
 
+    # path = f"{args.batch_index}.txt"
+    # with open(path,'w') as file:
+    #     print('test')
+    #     file.write("test")
+
     if torch.cuda.device_count() == 0:
         args.dev = "cpu"
     print(f"device: {args.dev}")
@@ -369,8 +405,8 @@ if __name__ == '__main__':
         raise ValueError("Must provide either --binder_dataset or --complex_dataset")
 
     if (args.n > 1):
-        main_mp(args,list(binder_subset))
+        main_mp(args,binder_subset)
     else:
-        main_array(args,list(binder_subset))
+        main_array(args,binder_subset)
 
     print('Done!')

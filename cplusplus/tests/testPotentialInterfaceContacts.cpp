@@ -12,7 +12,7 @@
 int main(int argc, char *argv[]) {
     MstOptions op;
     op.setTitle("Finds potential interface contacts");
-    op.addOption("frameDB","Path to mobile frame database",true);
+    // op.addOption("frameDB","Path to mobile frame database",true);
     op.addOption("contactData","Path to a JSON file describing probability density of contacts",true);
     op.addOption("complexPDB","A PDB file defining the complex between the protein target and designed binder. The target must have a defined sequence",true);
     op.addOption("binderChains","The binder chain ID(s) delimited by '_', e.g. '0_1'. If in --targetPDB mode, will be removed from the structure before scoring",true);
@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     if (op.isGiven("complexPDB")) {
         if (!op.isGiven("targetChains") || !op.isGiven("binderChains")) MstUtils::error("If scoring a complex, must provide '--targetChains' and '--binderChains'");
     }
-    string mobileFrameDB = op.getString("frameDB");
+    // string mobileFrameDB = op.getString("frameDB");
     string contactData = op.getString("contactData");
     string complexPDB = op.getString("complexPDB","");
     string targetChainIDsString = op.getString("targetChains");
@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     binderScorer* scorer = nullptr;
 
     binderScorerParams params;
-    params.frameDBPath = mobileFrameDB;
+    params.frameDBPath = "";
     params.potentialContactsJSONPath = contactData;
     params.posCut = 0.5;
     params.oriCut = 10;

@@ -53,6 +53,12 @@ public:
         PS = new ProximitySearch(atoms,2.0);
     }
 
+    void setResidues(vector<Residue*> res) {
+        atoms = AtomPointerVector();
+        for (Residue* R: res) atoms.push_back(R);
+        PS = new ProximitySearch(atoms,2.0);
+    }
+
     bool isStructureSet() {return !atoms.empty();}
 
     bool checkForClashesToStructure(vector<Residue*> queryRes) {

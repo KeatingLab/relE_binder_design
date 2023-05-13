@@ -107,6 +107,7 @@ class findSeedBridge {
             delete info_out;
         }
 
+        void setMaxSeedDistance(mstreal _maxDistance) {maxSeedDistance = _maxDistance;}
         void setSearchQuery(Structure* nTermSeed, Structure* cTermSeed, int S1CterminusResOffset = 0, int S2NterminusResOffset = 0);
 
         // The initial search is performed by comparing the distance between the CA of three terminal residues on each side
@@ -135,6 +136,7 @@ class findSeedBridge {
         string getSeedBridgeName(seedBridge* sB);
 
     private:
+        mstreal maxSeedDistance = 15.0;
 
         ProximitySearch PS;
 
@@ -217,6 +219,7 @@ class fuseSeedsAndBridge {
         clashChecker clashCheck;
 
         int overlapLength;
+        int maxTerminiDistance = 15;
 
         Structure* seedA;
         Structure* seedB;
@@ -297,7 +300,7 @@ class seedResidueBridgeGeometry {
             return (-ntermRF.getX()).cosineAngle(ntermRCaToctermRCa);
         };
 
-        static CartesianPoint averageOrientationVector(Structure* S, int windowLength = 2) {
+        static CartesianPoint averageOrientationVector(Structure* S, int windowLength = 4) {
             vector<Residue*> residues = S->getResidues();
             vector<CartesianPoint> orientationVectors;
             for (int i = 0; i < residues.size() - windowLength + 1; i++) {

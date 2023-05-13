@@ -64,6 +64,9 @@ if __name__ == '__main__':
     parser.add_argument('--model_dir', help='trained model folder', required=True)
     parser.add_argument('--seq_mode', help='controls which sequence is used when scoring the binder', default='consensus_aa')
     parser.add_argument('--score_mode', help='controls which pair energies are used when scoring', default='')
+    parser.add_argument('--custom_pep_reference', help='', default='')
+    parser.add_argument('--target_chain_id', help='In complex mode, optionally pass the protein chain ID(s) (e.g.: "ABC")',default='',type=str)
+    parser.add_argument('--binder_chain_id', help='In complex mode, optionally pass the peptide chain ID',default='')
     parser.add_argument('--dev', help='device to use', default='cuda:0')
     parser.add_argument('--store', help='if given, will write the output to a JSON file', action=argparse.BooleanOptionalAction)
     parser.add_argument('--hbond', help='if given, will print out hydrogen bonding information', action=argparse.BooleanOptionalAction)
@@ -89,13 +92,17 @@ if __name__ == '__main__':
     # Initialize the special dataloader for binders
     binder_subset = get_binder_names(args.binder_list)
     n_binders = len(binder_subset) if (binder_subset is not None) else "all"
-    print(f"Will attempt to load {n_binders} total structures from the binder dataset")
+
+    # If a simple peptide reference state is being used, no need to load binder structures separately
+    load_mode = "complex_only" if args.custom_pep_reference != '' else "binder_and_complex"
+    # load_mode = 'binder_and_complex'
+    print(f"Will attempt to load {n_binders} total structures from the binder dataset in {load_mode} mode")
     if (args.binder_dataset):
         # dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb)
-        dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,27500,binder_subset)
+        dataset = BinderScoringIterableDataset(filename=args.binder_dataset,target_pdb_path=args.target_pdb,max_res_num=27500,binder_subset=binder_subset,mode=load_mode,skip_package=False)
         dataset_iter = iter(dataset)
     elif (args.complex_dataset):
-        dataset = ComplexScoringDataset(args.complex_dataset)
+        dataset = ComplexScoringDataset(args.complex_dataset,targetChainID=args.target_chain_id,binderChainID=args.binder_chain_id,mode=load_mode)
         dataset_iter = iter(dataset)
     else:
         raise ValueError("Must provide either --binder_dataset or --complex_dataset")
@@ -151,6 +158,12 @@ if __name__ == '__main__':
     terminator.to(dev)
     binderSubsetNames = get_binder_names(args.binder_list)
 
+    custom_pep_ref_aa_probs = None
+    if args.custom_pep_reference != "":
+        with open(args.custom_pep_reference,"rb") as file:
+            custom_pep_ref_aa_probs = pickle.load(file)
+        print(f"Loaded custom peptide reference aa probabilites: {custom_pep_ref_aa_probs}")
+
     if args.store:
         try:
             os.mkdir('output')
@@ -166,7 +179,7 @@ if __name__ == '__main__':
         for packaged_binder_complex_data in dataset_iter:
             start = time.time()
             if scorer == None:
-                scorer = interfaceScorer(dataset.target_packaged_data,packaged_binder_complex_data,terminator,dev)
+                scorer = interfaceScorer(dataset.target_packaged_data,packaged_binder_complex_data,terminator,custom_pep_ref_aa_probs,dev)
                 # if args.hbond:
                 #     hbDetector = bbHBond(dataset.target_data['coords'])
                 #     hbDetector.setBinderResidues(dataset.current_binder_data['coords'])
@@ -201,7 +214,7 @@ if __name__ == '__main__':
         for idx,(packaged_target_data,packaged_binder_complex_data) in enumerate(dataset_iter):
             start = time.time()
             if scorer == None:
-                scorer = interfaceScorer(packaged_target_data,packaged_binder_complex_data,terminator,dev)
+                scorer = interfaceScorer(packaged_target_data,packaged_binder_complex_data,terminator,custom_pep_ref_aa_probs,dev)
                 # if args.hbond:
                 #     hbDetector = bbHBond(dataset.target_data['coords'])
             else:

@@ -233,6 +233,12 @@ int findSeedBridge::searchSeedsByCADistance(mstreal distanceCutoff) {
     cout << "R2 CA distance: " << queryDistances.getY() << endl;
     cout << "R3 CA distance: " << queryDistances.getZ() << endl;
 
+    // If R2 distance is greater than the max, ignore this pair of seeds
+    if (queryDistances.getY() > maxSeedDistance) {
+        cout << "Seeds are too far apart (" << maxSeedDistance << "), skipping" << endl;
+        return 0;
+    }
+
     // search for termini with matching distances
     vector<int> matchingSeedBridgeUniqueIDS = PS.getPointsWithin(queryDistances,0,distanceCutoff,true);
     for (int uniqueID : matchingSeedBridgeUniqueIDS) {
@@ -384,7 +390,7 @@ void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
                 cout << "Bridge " << bridgeN << " clashes and will be discarded" << endl;
                 continue;
             }
-            string name = seedA->getName()+"-"+MstUtils::toString(seedA->residueSize()-seedAOffset)+"-loop_"+MstUtils::toString(bridgeN)+"-"+MstUtils::toString(lenN)+"-"+seedB->getName()+"-"+MstUtils::toString(seedB->residueSize()-seedBOffset);
+            string name = seedA->getName()+"-"+MstUtils::toString(seedA->residueSize()-seedAOffset)+"_stitch_loop"+MstUtils::toString(bridgeN)+"-"+MstUtils::toString(lenN)+"_stitch_"+seedB->getName()+"-"+MstUtils::toString(seedB->residueSize()-seedBOffset);
             cout << "Seed with name: " << name << endl;
             *bridge_out << "HEADER    " << name << endl;
             selectedBridge->writePDB(*bridge_out);
@@ -402,6 +408,7 @@ void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
             topology.addFragment(*selectedBridge,getFragResIdx(seedA->residueSize()-seedAOffset-overlapLength,selectedBridge->residueSize()));
 
             Structure fusedS = Fuser::fuse(topology,fuserOut,params);
+            fusedS.getChain(0).setID("0");
             *fused_out << "HEADER    " << name << endl;
             fusedS.writePDB(*fused_out);
             bridgeN++;

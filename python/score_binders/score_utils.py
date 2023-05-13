@@ -25,14 +25,19 @@ def get_binder_names(pathToListFile):
     if pathToListFile == '':
         return None
     with open(pathToListFile,'r') as file:
-        names = set([line.strip() for line in file])
+        names = [line.strip() for line in file]
+        if len(set(names)) != len(names):
+            raise ValueError("Structure names are duplicated in input")
     return names
 
 # Functions for computing the score of a binder 
 class interfaceScorer:
-    def __init__(self, target_data, binder_complex_data, model, dev='cuda:0'):
+    def __init__(self, target_data, binder_complex_data, model, custom_pep_ref_aa_probs=None, dev='cuda:0'):
         self.model = model
         self.dev = dev
+
+        self.custom_pep_ref_aa_probs = self.set_custom_ref_aa(custom_pep_ref_aa_probs) if custom_pep_ref_aa_probs != None else None
+        print(self.custom_pep_ref_aa_probs)
 
         # Set model to eval mode
         self.model.eval()
@@ -67,7 +72,14 @@ class interfaceScorer:
         # self.bound_seq_probs = None
         # self.unbound_seq_probs = None
 
-        self.binder_chain_ids = [chain_id for idx,chain_id in enumerate(self.binder_complex_data['binder_chain_id']) if idx % 2 == 0]
+        if self.custom_pep_ref_aa_probs == None:
+            self.binder_chain_ids = [chain_id for idx,chain_id in enumerate(self.binder_complex_data['binder_chain_id']) if idx % 2 == 0]
+        else:
+            self.binder_chain_ids = [chain_id for chain_id in self.binder_complex_data['binder_chain_id']]
+
+    def set_custom_ref_aa(self,custom_pep_ref_aa_probs_dict):
+        custom_pep_ref_aa_probs_list = [custom_pep_ref_aa_probs_dict[int_to_AA[i]] for i in range(20)]
+        return torch.tensor(custom_pep_ref_aa_probs_list,dtype=torch.float32,device=self.dev) 
 
     def get_pdb_name(self,idx):
         return self.complex_netout[idx]['id']
@@ -77,10 +89,17 @@ class interfaceScorer:
         if self.target_netout == None:
             self.target_netout = self.run_model(self.target_data, self.dev)[0]
         binder_complex_netout = self.run_model(self.binder_complex_data, self.dev) #alternating netout: 1) binder, 2) complex
-        print(f"Ran model to generate network output for {len(binder_complex_netout)} structures")
-        self.binder_netout = [x for idx,x in enumerate(binder_complex_netout) if idx % 2 == 0]
-        self.complex_netout = [x for idx,x in enumerate(binder_complex_netout) if idx % 2 == 1]
-        print(f"binder_netout = {len(self.binder_netout)}, complex_netout = {len(self.complex_netout)}")
+        
+        if self.custom_pep_ref_aa_probs == None:
+            binder_complex_netout = self.run_model(self.binder_complex_data, self.dev)
+            print(f"Ran model to generate network output for {len(binder_complex_netout)} structures")
+            self.binder_netout = [x for idx,x in enumerate(binder_complex_netout) if idx % 2 == 0]
+            self.complex_netout = [x for idx,x in enumerate(binder_complex_netout) if idx % 2 == 1]
+            print(f"binder_netout = {len(self.binder_netout)}, complex_netout = {len(self.complex_netout)}")
+        else:
+            self.complex_netout = self.run_model(self.binder_complex_data, self.dev) 
+            print(f"Ran model to generate network output for {len(self.complex_netout)} structures")
+            print(f"complex_netout = {len(self.complex_netout)}")
 
         # get the residue info
         (self.protein_res,
@@ -144,10 +163,10 @@ class interfaceScorer:
                 'id': data['ids'][idx],
                 # 'etab': etab[idx].view(l, k, 20, 20).cpu(),
                 # 'E_idx': E_idx[idx].cpu(),
-                'etab': etab[idx][:l_crop,:min(l_crop,k)].view(l_crop, min(l_crop,k), 20, 20).cpu(),
-                'E_idx': E_idx[idx][:l_crop,:min(l_crop,k)].cpu(),
-                'sscore': sscore[idx][:l_crop].cpu(),
-                'seq':data['seqs'][idx][:l_crop].cpu(),
+                'etab': etab[idx][:l_crop,:min(l_crop,k)].view(l_crop, min(l_crop,k), 20, 20),
+                'E_idx': E_idx[idx][:l_crop,:min(l_crop,k)],
+                'sscore': sscore[idx][:l_crop],
+                'seq':data['seqs'][idx][:l_crop],
                 'res_info':data['res_info'][idx]
             }
             # print('id',dump['id'])
@@ -158,8 +177,8 @@ class interfaceScorer:
             dump_list.append(dump)
         return dump_list
 
-    @staticmethod
-    def get_res_idx(res_info_list, peptide_chain=None):
+    # @staticmethod
+    def get_res_idx(self, res_info_list, peptide_chain=None):
         protein_res_list = list()
         peptide_res_list = list()
         prot_res_info_list = list()
@@ -180,8 +199,8 @@ class interfaceScorer:
                     prot_res_info.append(res_info[i])
             if peptide_chain[idx] != '' and len(peptide_res) == 0:
                 raise ValueError('No residues found matching peptide chain: '+peptide_chain[idx])
-            protein_res_list.append(torch.tensor(protein_res))
-            peptide_res_list.append(torch.tensor(peptide_res))
+            protein_res_list.append(torch.tensor(protein_res,device=self.dev))
+            peptide_res_list.append(torch.tensor(peptide_res,device=self.dev))
             prot_res_info_list.append(prot_res_info)
             pep_res_info_list.append(pep_res_info)
         return protein_res_list, peptide_res_list, prot_res_info_list, pep_res_info_list
@@ -204,10 +223,10 @@ class interfaceScorer:
             
             # get the unbound target amino acid probabilities
             if self.unbound_target_aa_probs == None:
-                self.unbound_target_aa_probs,_,_ = interfaceScorer.get_aa_prob(self.target_netout['etab'],self.target_netout['E_idx'],self.target_netout['seq'],torch.arange(0,self.target_netout['etab'].shape[0]),torch.tensor([]),'native_aa',score_mode)
+                self.unbound_target_aa_probs,_,_ = self.get_aa_prob(self.target_netout['etab'],self.target_netout['E_idx'],self.target_netout['seq'],torch.arange(0,self.target_netout['etab'].shape[0]),torch.tensor([],device=self.dev),'native_aa',score_mode)
 
             # get the bound amino acid probabilities
-            bound_aa_probs,new_seq,_ = interfaceScorer.get_aa_prob(self.complex_netout[idx]['etab'],self.complex_netout[idx]['E_idx'],self.complex_netout[idx]['seq'],self.protein_res[idx],self.peptide_res[idx],seq_mode,score_mode)
+            bound_aa_probs,new_seq,_ = self.get_aa_prob(self.complex_netout[idx]['etab'],self.complex_netout[idx]['E_idx'],self.complex_netout[idx]['seq'],self.protein_res[idx],self.peptide_res[idx],seq_mode,score_mode)
             self.bound_aa_probs.append(bound_aa_probs)
             self.new_seq.append(new_seq)
 
@@ -217,14 +236,21 @@ class interfaceScorer:
             # print('binder_seq',interfaceScorer.tensorToSeq(self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]]))
 
             # get the unbound binder amino acid probabilities (we do this last because we need the consensus sequence from the previous step)
-            unbound_binder_aa_probs,_,_ = interfaceScorer.get_aa_prob(self.binder_netout[idx]['etab'],self.binder_netout[idx]['E_idx'],self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]],torch.arange(0,self.binder_netout[idx]['etab'].shape[0]),torch.tensor([]),'native_aa',score_mode)
-            self.unbound_binder_aa_probs.append(unbound_binder_aa_probs)
+            if self.custom_pep_ref_aa_probs == None:
+                unbound_binder_aa_probs,_,_ = self.get_aa_prob(self.binder_netout[idx]['etab'],self.binder_netout[idx]['E_idx'],self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]],torch.arange(0,self.binder_netout[idx]['etab'].shape[0]),torch.tensor([]),seq_mode,score_mode)
+                self.unbound_binder_aa_probs.append(unbound_binder_aa_probs)
 
             # get the sequence probability for the target residues
             if self.unbound_target_seq_probs == None:
                 self.unbound_target_seq_probs = interfaceScorer.get_seq_prob(self.unbound_target_aa_probs,self.target_netout['seq'])
-            unbound_binder_seq_probs = interfaceScorer.get_seq_prob(self.unbound_binder_aa_probs[idx],self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]])
-            self.unbound_binder_seq_probs.append(unbound_binder_seq_probs)
+            
+            # get the sequence probability for the peptide residues
+            if self.custom_pep_ref_aa_probs != None:
+                unbound_binder_seq_probs = interfaceScorer.get_seq_prob_custom(self.custom_pep_ref_aa_probs,self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]])
+                self.unbound_binder_seq_probs.append(unbound_binder_seq_probs)
+            else:
+                unbound_binder_seq_probs = interfaceScorer.get_seq_prob(self.unbound_binder_aa_probs[idx],self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]])
+                self.unbound_binder_seq_probs.append(unbound_binder_seq_probs)
 
             bound_seq_probs = interfaceScorer.get_seq_prob(self.bound_aa_probs[idx],self.new_seq[idx])
             unbound_seq_probs = torch.cat((self.unbound_target_seq_probs,self.unbound_binder_seq_probs[idx]),dim=0)
@@ -237,13 +263,16 @@ class interfaceScorer:
             # get the structure score from the bound peptide + protein
             if self.unbound_structure_score_targettotal == None:
                 self.unbound_structure_score_targettotal = self.target_netout['sscore'].sum()
-            self.unbound_structure_scores.append(torch.cat((self.target_netout['sscore'],self.binder_netout[idx]['sscore']),dim=0))
+            if self.unbound_target_seq_probs == None:
+                self.unbound_structure_scores.append(torch.cat((self.target_netout['sscore'],self.binder_netout[idx]['sscore']),dim=0))
+            else:
+                self.unbound_structure_scores.append(torch.cat((self.target_netout['sscore'],torch.zeros(len(self.pep_res_info[idx]),device=self.dev))))
             self.bound_structure_scores.append(self.complex_netout[idx]['sscore'])
 
         return self.binder_scores, self.bound_structure_scores
     
-    @staticmethod
-    def get_aa_prob(etab, E_idx, seq, fixed_res, variable_res, seq_mode, score_mode):
+    # @staticmethod
+    def get_aa_prob(self, etab, E_idx, seq, fixed_res, variable_res, seq_mode, score_mode):
         """ Get the probability of each protein amino acid
 
         NOTE: assumes that peptide residues are in a contiguous sequence
@@ -398,7 +427,7 @@ class interfaceScorer:
             mask_target = ~sum(E_idx_pair_target==res for res in fixed_res).bool() # L - p x 29
 
             # mask out pair energies between a peptide residue and another peptide residue
-            mask_peptide = ~sum(E_idx_pair_peptide==res for res in variable_res).bool() if variable_res.numel() != 0 else torch.tensor([]) # p x 29
+            mask_peptide = ~sum(E_idx_pair_peptide==res for res in variable_res).bool() if variable_res.numel() != 0 else torch.tensor([],device=self.dev) # p x 29
 
             # concatenate masks and apply
             samechain_mask = torch.concat((mask_target,mask_peptide),dim=0)
@@ -479,16 +508,28 @@ class interfaceScorer:
         else:
             seq_prob = torch.gather(aa_probs,dim=-1,index=seq_expand) # L x 1
         return seq_prob.squeeze()
+    
+    @staticmethod
+    def get_seq_prob_custom(aa_probs_tensor, seq, sel_res_idx = None):
+        if sel_res_idx is not None:
+            seq_filt_expanded = torch.unsqueeze(torch.gather(seq,dim=0,index=sel_res_idx),dim=-1)
+            aa_probs_tensor_expanded = torch.unsqueeze(aa_probs_tensor,dim=0).expand(seq_filt_expanded.shape[0],20)
+            seq_prob = torch.gather(aa_probs_tensor_expanded,dim=-1,index=seq_filt_expanded)
+        else:
+            seq_expanded = torch.unsqueeze(seq,dim=-1)
+            aa_probs_tensor_expanded = torch.unsqueeze(aa_probs_tensor,dim=0).expand(seq.shape[0],20)
+            seq_prob = torch.gather(aa_probs_tensor_expanded,dim=-1,index=seq_expanded)
+        return seq_prob.squeeze()
 
     ### File output methods
     def write_residue_scores(self, score_mode: str):
         if (self.score_file == None):
             self.score_file = open('residueBinderScores.csv','w')
-            self.score_file.write('name,score_mode,res_idx,chain_id,resnum,seqstruct_score,unbound_nat_aa_prob,bound_nat_aa_prob,unbound_struct_score,bound_struct_score\n')
+            self.score_file.write('name,score_mode,res_idx,chain_id,resnum,aa,seqstruct_score,unbound_nat_aa_prob,bound_nat_aa_prob,unbound_struct_score,bound_struct_score\n')
         for idx in range(len(self.complex_netout)):
-            assert len(self.binder_scores[idx]) == len(self.unbound_structure_scores[idx]) == len(self.prot_res_info[idx]) + len(self.pep_res_info[idx]) == len(self.bound_seq_probs[idx]) == len(self.unbound_seq_probs[idx]), print(len(self.binder_scores[idx]),len(self.bound_structure_scores[idx]),len(self.prot_res_info[idx]),len(self.pep_res_info[idx]))
-            for i,((chain_id,res_num),score,unbound_prob,bound_prob,unbound_struct_score,bound_struct_score) in enumerate(zip(self.prot_res_info[idx]+self.pep_res_info[idx],self.binder_scores[idx],torch.cat((self.unbound_target_seq_probs,self.unbound_binder_seq_probs[idx]),dim=0),self.bound_seq_probs[idx],self.unbound_structure_scores[idx],self.bound_structure_scores[idx])):
-                line = f"{self.complex_netout[idx]['id']},{score_mode},{i},{chain_id},{res_num},{score.item()},{unbound_prob.item()},{bound_prob.item()},{unbound_struct_score.item()},{bound_struct_score.item()}"
+            assert len(self.binder_scores[idx]) == len(self.unbound_structure_scores[idx]) == len(self.prot_res_info[idx]) + len(self.pep_res_info[idx]) == len(self.new_seq[idx])== len(self.bound_seq_probs[idx]) == len(self.unbound_seq_probs[idx]), print(len(self.binder_scores[idx]),len(self.bound_structure_scores[idx]),len(self.prot_res_info[idx]),len(self.pep_res_info[idx]))
+            for i,((chain_id,res_num),aa,score,unbound_prob,bound_prob,unbound_struct_score,bound_struct_score) in enumerate(zip(self.prot_res_info[idx]+self.pep_res_info[idx],self.new_seq[idx],self.binder_scores[idx],torch.cat((self.unbound_target_seq_probs,self.unbound_binder_seq_probs[idx]),dim=0),self.bound_seq_probs[idx],self.unbound_structure_scores[idx],self.bound_structure_scores[idx])):
+                line = f"{self.complex_netout[idx]['id']},{score_mode},{i},{chain_id},{res_num},{int_to_AA[aa.item()]},{score.item()},{unbound_prob.item()},{bound_prob.item()},{unbound_struct_score.item()},{bound_struct_score.item()}"
                 self.score_file.write(line+'\n')
 
     def write_structure_scores(self, score_mode: str):
@@ -551,11 +592,11 @@ class interfaceScorer:
 
     def pickle_network_output_target(self, path_prefix:str):
         target_netout_pickle = {
-            'etab':self.target_netout['etab'].numpy(),
-            'E_idx':self.target_netout['E_idx'].numpy(),
-            'sscore':self.target_netout['sscore'].numpy(),
-            'seq':self.target_netout['seq'].numpy(),
-            'protein_res':self.protein_res[0].numpy(),
+            'etab':self.target_netout['etab'].cpu().numpy(),
+            'E_idx':self.target_netout['E_idx'].cpu().numpy(),
+            'sscore':self.target_netout['sscore'].cpu().numpy(),
+            'seq':self.target_netout['seq'].cpu().numpy(),
+            'protein_res':self.protein_res[0].cpu().numpy(),
         }
         with open(path_prefix+self.target_netout['id']+'_target.pickle','wb') as file:
             pickle.dump(target_netout_pickle, file, pickle.HIGHEST_PROTOCOL)
@@ -563,12 +604,12 @@ class interfaceScorer:
     def pickle_network_output_binder(self, path_prefix:str):
         for idx in range(len(self.complex_netout)):
             netout_pickle = {
-                'etab':self.binder_netout[idx]['etab'].numpy(),
-                'E_idx':self.binder_netout[idx]['E_idx'].numpy(),
-                'sscore':self.binder_netout[idx]['sscore'].numpy(),
-                'seq':self.binder_netout[idx]['seq'].numpy(),
-                'peptide_res':self.peptide_res[idx].numpy(),
-                'final_seq':self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]].numpy()
+                'etab':self.binder_netout[idx]['etab'].cpu().numpy(),
+                'E_idx':self.binder_netout[idx]['E_idx'].cpu().numpy(),
+                'sscore':self.binder_netout[idx]['sscore'].cpu().numpy(),
+                'seq':self.binder_netout[idx]['seq'].cpu().numpy(),
+                'peptide_res':self.peptide_res[idx].cpu().numpy(),
+                'final_seq':self.new_seq[idx][self.pep_res_range[idx][0]:self.pep_res_range[idx][1]].cpu().numpy()
             }
             with open(path_prefix+self.binder_netout[idx]['id']+'_binder.pickle','wb') as file:
                 pickle.dump(netout_pickle, file, pickle.HIGHEST_PROTOCOL)
@@ -576,13 +617,13 @@ class interfaceScorer:
     def pickle_network_output_complex(self, path_prefix:str):
         for idx in range(len(self.complex_netout)):
             complex_netout_pickle = {
-                'etab':self.complex_netout[idx]['etab'].numpy(),
-                'E_idx':self.complex_netout[idx]['E_idx'].numpy(),
-                'sscore':self.complex_netout[idx]['sscore'].numpy(),
-                'seq':self.complex_netout[idx]['seq'].numpy(),
-                'protein_res':self.protein_res[idx].numpy(),
-                'peptide_res':self.peptide_res[idx].numpy(),
-                'final_seq':self.new_seq[idx].numpy()
+                'etab':self.complex_netout[idx]['etab'].cpu().numpy(),
+                'E_idx':self.complex_netout[idx]['E_idx'].cpu().numpy(),
+                'sscore':self.complex_netout[idx]['sscore'].cpu().numpy(),
+                'seq':self.complex_netout[idx]['seq'].cpu().numpy(),
+                'protein_res':self.protein_res[idx].cpu().numpy(),
+                'peptide_res':self.peptide_res[idx].cpu().numpy(),
+                'final_seq':self.new_seq[idx].cpu().numpy()
             }
             with open(path_prefix+self.complex_netout[idx]['id']+'.pickle','wb') as file:
                 pickle.dump(complex_netout_pickle, file, pickle.HIGHEST_PROTOCOL)    
