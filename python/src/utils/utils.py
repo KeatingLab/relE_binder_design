@@ -18,7 +18,7 @@ import warnings
 import shutil
 
 ## for loading structures from multi-entry PDB file and threading a new sequence on
-def getPDBsFromMultiEntryFile(pdbNames,multientryPDBpath,outDir):
+def getPDBsFromMultiEntryFile(pdbNames,multientryPDBpath,outDir,name_mapping=None):
     pdbNames_set = set(pdbNames)
     pdbNames_found = set()
     print(f"Searching for {len(pdbNames_set)} structures in multi-entry PDB file")
@@ -40,6 +40,7 @@ def getPDBsFromMultiEntryFile(pdbNames,multientryPDBpath,outDir):
                     if pdb_line[:3] != 'TER':
                         pdb_lines.append(pdb_line)
                     pdb_line = file.readline()
+                name = name if name_mapping is None else name_mapping[name]
                 with open(os.path.join(outDir,name+'.pdb'),'w') as pdb_file:
                     for pdb_line in pdb_lines:
                         pdb_file.write(pdb_line)
@@ -51,11 +52,11 @@ def getPDBsFromMultiEntryFile(pdbNames,multientryPDBpath,outDir):
     
 def loadAndModifyPDBs(filtered_df,multientryPDBpath,targetPDBchains=None,prefix='',
                       binder_chain_id='0',name_col='name',
-                      seq_col='',score_col='',renumber=False):
+                      seq_col='',score_col='',renumber=False,name_mapping=None):
     # extract the PDBs of interest from the multi-entry file
     originalPDBDir = 'extractedPDBs' if prefix == '' else f"{prefix}_extractedPDBs"
     os.makedirs(originalPDBDir,exist_ok=True)
-    filenames = getPDBsFromMultiEntryFile(filtered_df[name_col],multientryPDBpath,originalPDBDir)
+    filenames = getPDBsFromMultiEntryFile(filtered_df[name_col],multientryPDBpath,originalPDBDir,name_mapping)
     
     # load with Bio.PDB parser
     modifiedPDBDir = 'modifiedPDBs' if prefix == '' else f"{prefix}_modifiedPDBs"
@@ -64,7 +65,7 @@ def loadAndModifyPDBs(filtered_df,multientryPDBpath,targetPDBchains=None,prefix=
     p = PDBParser(PERMISSIVE=1)
     warnings.filterwarnings('ignore')
     for i,row in filtered_df.iterrows():
-        name = row[name_col]
+        name = row[name_col] if name_mapping is None else name_mapping[row[name_col]]
         binder_structure = p.get_structure(name,os.path.join(originalPDBDir,name+'.pdb'))
         
         # set sequence/bfactor

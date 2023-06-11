@@ -17,6 +17,7 @@ CC = g++
 CFLAGS = -std=c++11 -g3 -gdwarf-3 -O1 -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(JSONINCL) -I$(INCL)
 MPICC = mpic++
 MPIFLAGS = -std=c++0x -O
+LDFLAGS = #-Wl,-t
 
 OUT = .
 INCL = $(OUT)/inc
@@ -75,42 +76,42 @@ clean:
 # Boost Python
 ######################
 
-PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
 uname := $(shell uname -s)
-PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
 ifeq ($(uname),Linux)
 	# TODO verify that this works on Linux
 	pythonExec := python3
-	PYLIB_PATH = $(shell $(pythonExec)-config --exec-prefix)/lib64
-	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -lboost_python$(PYTHON_SUFFIX) -lpeptide_design $(LDLIBS)
+	PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
+	PYLIB_PATH = $(shell $(pythonExec)-config --exec-prefix)/lib
+	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -lboost_python$(PYTHON_SUFFIX) -lpeptide_binder_design $(LDLIBS)
 else # MacOS
 	# Requires python 3.8
 	pythonExec := python3.8
+	PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
 	PYLIB_PATH = $(shell $(pythonExec) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'));")
-	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -framework CoreFoundation -undefined dynamic_lookup -lboost_python$(PYTHON_SUFFIX) -lpeptide_design $(LDLIBS)
+	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -framework CoreFoundation -undefined dynamic_lookup -lboost_python$(PYTHON_SUFFIX) -lpeptide_binder_design $(LDLIBS)
 endif
 PY_INCLUDES = $(shell $(pythonExec)-config --includes)
 PY_SITE_INCLUDE_PARENT = $(shell $(pythonExec)-config --exec-prefix)
-PYFLAGS = $(PY_INCLUDES) -I$(PY_SITE_INCLUDE_PARENT)/include -O3 -fPIC -std=c++11 -I$(INCL) -I$(MSTINCL)
+PYFLAGS = $(PY_INCLUDES) -I$(PY_SITE_INCLUDE_PARENT)/include -O3 -fPIC -std=c++11 -I$(INCL) -I$(MSTINCL) -I$(JSONINCL) -I$(SASAINCL)
 
 
 # make the boost.python shared object
-python: $(OUT)/lib/peptide_design.so
+python: $(OUT)/lib/peptide_binder_design.so
 
 $(BUILDDIR)/python.o: $(SRCDIR)/python.cpp # $(OBJECTS)
-	$(CC) $(PYFLAGS) -c -o $@ $<
+	$(CC) $(PYFLAGS) $(LDFLAGS) -c -o $@ $<
 
-$(OUT)/lib/peptide_design.so: $(BUILDDIR)/python.o $(OBJECTS) lib
-	$(CC) -shared -o $@ $< $(PYLIB) -Wl,-rpath,$(PYLIB_PATH)
+$(OUT)/lib/peptide_binder_design.so: $(BUILDDIR)/python.o $(OBJECTS) lib
+	$(CC) $(LDFLAGS) -shared -o $@ $< $(PYLIB) -Wl,-rpath,$(PYLIB_PATH)
 
 .PHONY: lib
-lib: $(OUT)/lib/libpeptide_design.a
+lib: $(OUT)/lib/libpeptide_binder_design.a
 
-$(OUT)/lib/libpeptide_design.a: directories $(OBJECTS)
+$(OUT)/lib/libpeptide_binder_design.a: directories $(OBJECTS)
 	# Remove the Python.o file (it will need to be rebuilt anyway)
 	# rm -f $(BUILDDIR)/python.o
 
-	ar rs $(OUT)/lib/libpeptide_design.a $(OBJECTS) $(MSTOBJS)/*.o
+	ar rs $(OUT)/lib/libpeptide_binder_design.a $(OBJECTS) $(MSTOBJS)/*.o
 
 ######################
 # Make the Directories

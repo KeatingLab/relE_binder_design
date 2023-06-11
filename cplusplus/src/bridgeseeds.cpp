@@ -112,7 +112,6 @@ vector<Atom*> seedBridge::getBridgeTerminusFromStructure(Residue* ntermR, Residu
 
 void seedBridgeDB::buildDBfromStructures(int _maxBridgeLen) {
     maxBridgeLength = _maxBridgeLen;
-    for (seedBridge* sB : allBridges) delete sB;
     allBridges.clear();
     if (structureDB->numTargets() <= 0) MstUtils::error("Must load structures before defining bridge elements","seedBridgeDB::buildDBfromStructures");
     for (int targetID = 0; targetID < structureDB->numTargets(); targetID++) {
@@ -124,7 +123,7 @@ void seedBridgeDB::buildDBfromStructures(int _maxBridgeLen) {
                     // Now, extract a bridge from residues in chain
                     Residue* ntermR = &C->getResidue(resID);
                     Residue* ctermR = &C->getResidue(resID+bridgeLength+1);
-                    seedBridge* newBridge = new seedBridge(targetID,ntermR,ctermR);
+                    shared_ptr<seedBridge> newBridge = make_shared<seedBridge>(targetID,ntermR,ctermR);
                     allBridges.push_back(newBridge);
                 }
             }
@@ -141,7 +140,7 @@ void seedBridgeDB::writeDBtoFile(string pathToDBFile) {
     MstUtils::writeBin(ofs, (int)1); // format version
     MstUtils::writeBin(ofs,'L');
     MstUtils::writeBin(ofs, (int)maxBridgeLength);
-    for (seedBridge* sB : allBridges) {
+    for (const shared_ptr<seedBridge>& sB : allBridges) {
         MstUtils::writeBin(ofs,'B');
         sB->writeToBin(ofs);
     }
@@ -150,7 +149,7 @@ void seedBridgeDB::writeDBtoFile(string pathToDBFile) {
 }
 
 void seedBridgeDB::readDBfromFile(string pathToDBFile) {
-    cout << "Reading bridge binary database from file..." << endl;
+    cout << "Reading bridge binary database from file... filtering out bridges with > " << maxBridgeLength << " residues" << endl;
     fstream ifs;
     MstUtils::openFile(ifs,pathToDBFile,fstream::in|fstream::binary);
 
@@ -164,21 +163,30 @@ void seedBridgeDB::readDBfromFile(string pathToDBFile) {
     MstUtils::readBin(ifs,sect);
     if (sect != 'L') MstUtils::error("File missing bridge length","seedBridgeDB::readDBfromFile");
     MstUtils::readBin(ifs,val);
-    maxBridgeLength = val;
+    cout << "File contains bridges up to length: " << val << endl;
+    if (maxBridgeLength < 0) maxBridgeLength = val; // set max to db value if none is already specified
     MstUtils::readBin(ifs,sect);
+    int count = 0;
     while (sect == 'B') {
-        seedBridge* sB = new seedBridge;
+        shared_ptr<seedBridge> sB = make_shared<seedBridge>();
         sB->readFromBin(ifs);
-        sB->setUniqueID(allBridges.size());
-        allBridges.push_back(sB);
+        if ((maxBridgeLength < 0)||(sB->getBridgeLength() <= maxBridgeLength)) {
+            sB->setUniqueID(allBridges.size());
+            allBridges.push_back(sB);
+        }
+        // no need to delete, now that we're using shared pointers
+        // else {
+        //     delete sB;
+        // }
         MstUtils::readBin(ifs,sect);
+        count++;
         // if (allBridges.size() % 1000 == 0) cout << allBridges.size() << " seed bridges imported so far" << endl;
     }
     ifs.close();
     cout << "Done reading database. Loaded " << allBridges.size() << " bridges" << endl;
 }
 
-seedBridge* seedBridgeDB::getBridge(int uniqueID) {
+shared_ptr<seedBridge> seedBridgeDB::getBridge(int uniqueID) {
     if ((uniqueID < 0)||(uniqueID >= allBridges.size())) MstUtils::error("Provied uniqueID falls outside of the bounds of existing seedBridges","seedBridgeDB::getBridge");
     return allBridges[uniqueID];
 }
@@ -242,7 +250,7 @@ int findSeedBridge::searchSeedsByCADistance(mstreal distanceCutoff) {
     // search for termini with matching distances
     vector<int> matchingSeedBridgeUniqueIDS = PS.getPointsWithin(queryDistances,0,distanceCutoff,true);
     for (int uniqueID : matchingSeedBridgeUniqueIDS) {
-        seedBridge* bridgeMatch = bridgeData.getBridge(uniqueID);
+        shared_ptr<seedBridge> bridgeMatch = bridgeData.getBridge(uniqueID);
         matches.push_back(bridgeMatch);
     }
     cout << "Found " << matches.size() << " matching bridges by comparing CA distances" << endl;
@@ -256,7 +264,7 @@ vector<mstreal> findSeedBridge::getBridgeLengthDist() {
     vector<int> counts(bridgeData.getMaxBridgeLength(),0);
     vector<mstreal> pDist;
     int totalCount = 0;
-    for (seedBridge* sB : matches) {
+    for (const shared_ptr<seedBridge>& sB : matches) {
         counts[sB->getBridgeLength()]++;
         totalCount++;
     }
@@ -270,12 +278,12 @@ vector<mstreal> findSeedBridge::getBridgeLengthDist() {
 
 void findSeedBridge::loadSeedBridgeDataIntoAPV() {
     cout << "Loading seed bridge terminal residue distances into APV" << endl;
-    const vector<seedBridge*>& allBridges = bridgeData.getAllBridges();
+    const vector<shared_ptr<seedBridge>>& allBridges = bridgeData.getAllBridges();
     boundingBox distanceBB(1.0);
-    for (seedBridge* sB : allBridges) distanceBB.update(sB->getTerminalResidueDistances());
+    for (const shared_ptr<seedBridge> sB : allBridges) distanceBB.update(sB->getTerminalResidueDistances());
     int Nbuckets = int(ceil(max(max((distanceBB.getXWidth()), (distanceBB.getYWidth())), (distanceBB.getZWidth()))/0.5)); //0.5 Å is the characteristic distance, eq. copied from ProximitySearch MST class
     PS = ProximitySearch(distanceBB.getXMin(),distanceBB.getYMin(),distanceBB.getZMin(),distanceBB.getXMax(),distanceBB.getYMax(),distanceBB.getZMax(),Nbuckets);
-    for (seedBridge* sB : allBridges) PS.addPoint(sB->getTerminalResidueDistances(),sB->getUniqueID());
+    for (const shared_ptr<seedBridge> sB : allBridges) PS.addPoint(sB->getTerminalResidueDistances(),sB->getUniqueID());
     cout << "Done loading into APV." << endl; 
 }
 
@@ -285,8 +293,8 @@ int findSeedBridge::verifyMatchesBySuperposition(mstreal RMSDCutoff) {
     matchesByLength.clear();
 
     int count = 0;
-    for (seedBridge* sB : matches) {
-        vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
+    for (const shared_ptr<seedBridge>& sB : matches) {
+        vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB.get());
         mstreal RMSDval = calc.bestRMSD(bridgeTerminus,terminalResidueBBAtoms,true);
         // if (count % 100 == 0) cout << "RMSDval: " << RMSDval << endl;
         if (RMSDval <= RMSDCutoff) {
@@ -313,7 +321,7 @@ vector<int> findSeedBridge::getVerifiedBridgeLengthDist(string name) {
     vector<int> counts(bridgeData.getMaxBridgeLength()+1,0);
     vector<mstreal> pDist;
     int totalCount = 0;
-    for (seedBridge* sB : verifiedMatches) {
+    for (const shared_ptr<seedBridge>& sB : verifiedMatches) {
         counts[sB->getBridgeLength()]++;
         totalCount++;
     }
@@ -327,10 +335,10 @@ vector<int> findSeedBridge::getVerifiedBridgeLengthDist(string name) {
     return counts;
 }
 
-vector<vector<Structure*>> findSeedBridge::getVerifiedBridgeStructures() {
-    vector<vector<Structure*>> result(bridgeData.getMaxBridgeLength()+1,vector<Structure*>());
-    for (seedBridge* sB : verifiedMatches) {
-        result[sB->getBridgeLength()].push_back(getAlignedBridgeStructure(sB));
+vector<vector<shared_ptr<Structure>>> findSeedBridge::getVerifiedBridgeStructures() {
+    vector<vector<shared_ptr<Structure>>> result(bridgeData.getMaxBridgeLength()+1);
+    for (const shared_ptr<seedBridge> sB : verifiedMatches) {
+        result[sB->getBridgeLength()].push_back(getAlignedBridgeStructure(sB.get()));
     }
     return result;
 }
@@ -350,8 +358,8 @@ vector<vector<Structure*>> findSeedBridge::getVerifiedBridgeStructures() {
 //     return result;
 // }
 
-Structure* findSeedBridge::getAlignedBridgeStructure(seedBridge* sB) {
-    Structure* bridgeAndTerminus = new Structure(bridgeData.getBridgeAndTerminusFromDB(sB));
+shared_ptr<Structure> findSeedBridge::getAlignedBridgeStructure(seedBridge* sB) {
+    shared_ptr<Structure> bridgeAndTerminus = make_shared<Structure>(bridgeData.getBridgeAndTerminusFromDB(sB));
     vector<Atom*> bridgeTerminus = bridgeData.getBridgeTerminusFromDB(sB);
     calc.align(bridgeTerminus,terminalResidueBBAtoms,*bridgeAndTerminus);
     return bridgeAndTerminus;
@@ -362,10 +370,10 @@ void findSeedBridge::writeToMultiPDB(string pathToPDB, string bridgeName, int to
     MstUtils::openFile(pdb_out,pathToPDB,fstream::out);
     for (int len = 0; len < matchesByLength.size(); len++) {
         int N = 0;
-        for (seedBridge* sB : matchesByLength[len]) {
+        for (const shared_ptr<seedBridge>& sB : matchesByLength[len]) {
             N++;
             if ((topN != -1)&&(N >= topN)) continue;
-            Structure* bridgeAndTerminus = getAlignedBridgeStructure(sB);
+            shared_ptr<Structure> bridgeAndTerminus = getAlignedBridgeStructure(sB.get());
             pdb_out << "HEADER    " << bridgeName << "_" << sB->getBridgeLength() << "_" << sB->getUniqueID() << endl;
             bridgeAndTerminus->writePDB(pdb_out);
         }
@@ -374,16 +382,17 @@ void findSeedBridge::writeToMultiPDB(string pathToPDB, string bridgeName, int to
 
 /* --- --- --- --- --- fuseSeedsAndBridge --- --- --- --- --- */
 
-void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
+vector<shared_ptr<Structure>> fuseSeedsAndBridge::fuse() {
+    all_fused.clear();
 
     // For each bridge length, cluster, and fuse the representative to the seeds
     for (int lenN = 0; lenN < bridges.size(); lenN++) {
-        vector<Structure*>& lengthNBridges = bridges[lenN];
+        vector<shared_ptr<Structure>>& lengthNBridges = bridges[lenN];
         if (lengthNBridges.empty()) continue;
-        vector<Structure*> clusterReps = clusterBridgeStructures(lengthNBridges,1000,0.75);
+        vector<shared_ptr<Structure>> clusterReps = clusterBridgeStructures(lengthNBridges,1000,0.75);
         cout << "After clustering, found " << clusterReps.size() << " clusters for bridges of length " << lenN << endl;
         int bridgeN = 0;
-        for (Structure* selectedBridge : clusterReps) {
+        for (const shared_ptr<Structure>& selectedBridge : clusterReps) {
             bridgeN++;
             // check if clashes with the target
             if ((clashCheck.isStructureSet())&&(clashCheck.checkForClashesToStructure(selectedBridge->getResidues()))) {
@@ -407,25 +416,33 @@ void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
             // add loop last to preserve seed A/B sequence
             topology.addFragment(*selectedBridge,getFragResIdx(seedA->residueSize()-seedAOffset-overlapLength,selectedBridge->residueSize()));
 
-            Structure fusedS = Fuser::fuse(topology,fuserOut,params);
-            fusedS.getChain(0).setID("0");
-            *fused_out << "HEADER    " << name << endl;
-            fusedS.writePDB(*fused_out);
+            shared_ptr<Structure> fusedS = make_shared<Structure>(Fuser::fuse(topology,fuserOut,params));
+            fusedS->setName(name);
+            fusedS->getChain(0).setID("0");
+            all_fused.push_back(fusedS);
             bridgeN++;
         }
     }
+    return all_fused;
 }
 
-vector<Structure*> fuseSeedsAndBridge::clusterBridgeStructures(vector<Structure*> lengthNBridges, int Nstructures, mstreal clusterRMSD) {
+void fuseSeedsAndBridge::writeFusedStructuresToPDB() {
+    for (const shared_ptr<Structure>& fused : all_fused) {
+        *fused_out << "HEADER    " << fused->getName() << endl;
+        fused->writePDB(*fused_out);
+    }
+}
+
+vector<shared_ptr<Structure>> fuseSeedsAndBridge::clusterBridgeStructures(const vector<shared_ptr<Structure>>& lengthNBridges, int Nstructures, mstreal clusterRMSD) {
     vector<vector<Atom*>> bridgeAtoms;
     int count = 1;
-    for (Structure* s : lengthNBridges) {
+    for (const shared_ptr<Structure>& s : lengthNBridges) {
         if (count > Nstructures) break;
         bridgeAtoms.push_back(s->getAtoms());
         count++;
     }
     vector<vector<int>> clusters = cl.greedyCluster(bridgeAtoms,clusterRMSD);
-    vector<Structure*> clusterReps;
+    vector<shared_ptr<Structure>> clusterReps;
     for (int i = 0; i < clusters.size(); i++) clusterReps.push_back(lengthNBridges[clusters[i][0]]);
     return clusterReps;
 }

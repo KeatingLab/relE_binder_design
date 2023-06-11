@@ -151,7 +151,8 @@ int main (int argc, char *argv[]) {
     op.addOption("seedBPDBList","The path to a list of seed PDB files",false);
     op.addOption("avoidClashesToStructure","Path to PDB file. If provided, will check for clash between briges and PDB and exclude bridges that clash",false);
     op.addOption("ignoreSeedClash","",false);
-    op.addOption("maxSeedTerminiDistance","(default: 15 Å)",false);
+    op.addOption("maxSeedTerminiDistance","Seed termini will be searched for connections if they are within this distance (default: -1 Å)",false);
+    op.addOption("maxBridgeLength","Loop regions connecting seeds will contain no more than this many residues (default: 8 residues)",false);
     op.addOption("workerID","The 0-indexed unique index for this job, e.g. ${SLURM_ARRAY_TASK_ID} (default = 0)",false);
     op.addOption("nWorkers","The total number of jobs running in parallel (default = 1)",false);
     op.addOption("verbose","");
@@ -172,7 +173,8 @@ int main (int argc, char *argv[]) {
     string seedBPDBListPath = op.getString("seedBPDBList","");
     string clashStructure = op.getString("avoidClashesToStructure","");
     bool ignoreSeedClash = op.isGiven("ignoreSeedClash");
-    int maxSeedTerminiDistance = op.getInt("maxSeedTerminiDistance",15);
+    int maxSeedTerminiDistance = op.getInt("maxSeedTerminiDistance",-1.0);
+    int maxBridgeLength = op.getInt("maxBridgeLength",8);
     int workerID = op.getInt("workerID",0);
     int nWorkers = op.getInt("nWorkers",1);
     bool verbose = true; // op.isGiven("verbose");
@@ -189,9 +191,16 @@ int main (int argc, char *argv[]) {
     //     seeds = new seedBinaryFile(seedBinPath);
     //     seeds->scanFilePositions();
     // }
+
+    if (maxSeedTerminiDistance < 0) {
+        // Set the max distance according to simple rule:
+        // 3.3 Å / residue (distance between Ca in consecutive residues in extended conformation)
+        // Add two residues because the distance check is between central residues in the terminal regions
+        maxSeedTerminiDistance = 3.3 * (maxBridgeLength+2); 
+    }
     
     // Load the bridge distances/structures from which the distances were calculated
-    findSeedBridge bridgeFinder(op.getString("bridgeDB"),MstUtils::toString(workerID));
+    findSeedBridge bridgeFinder(op.getString("bridgeDB"),MstUtils::toString(workerID),maxBridgeLength);
     bridgeFinder.setMaxSeedDistance(maxSeedTerminiDistance);
     bridgeFinder.loadStructureDB(op.getString("structureDB"));
     bridgeFinder.reportAPVBoundaries();
@@ -216,9 +225,13 @@ int main (int argc, char *argv[]) {
         vector<string> seedPDBPathList = MstUtils::fileToArray(seedAPDBListPath);
         vector<Structure*> seeds;
         for (string path : seedPDBPathList) {
-            Structure* seed = new Structure(path);
-            seed->setName(seedPathToName(seed->getName()));
-            seeds.push_back(seed);
+            Structure seed(path);
+            string name = seedPathToName(seed.getName());
+            Chain* seed_chain = seed.getChainByID("0");
+            if (seed_chain == NULL) MstUtils::error("No seed chain ('0') found in structure: "+MstUtils::toString(name));
+            Structure* seed_only = new Structure(*seed_chain);
+            seed_only->setName(name);
+            seeds.push_back(seed_only);
         }
         seedPairs.setSeedsGroupA(seeds);
     }
@@ -226,9 +239,13 @@ int main (int argc, char *argv[]) {
         vector<string> seedPDBPathList = MstUtils::fileToArray(seedBPDBListPath);
         vector<Structure*> seeds;
         for (string path : seedPDBPathList) {
-            Structure* seed = new Structure(path);
-            seed->setName(seedPathToName(seed->getName()));
-            seeds.push_back(seed);
+            Structure seed(path);
+            string name = seedPathToName(seed.getName());
+            Chain* seed_chain = seed.getChainByID("0");
+            if (seed_chain == NULL) MstUtils::error("No seed chain ('0') found in structure: "+MstUtils::toString(name));
+            Structure* seed_only = new Structure(*seed_chain);
+            seed_only->setName(name);
+            seeds.push_back(seed_only);
         }
         seedPairs.setSeedsGroupB(seeds);
     }
@@ -257,10 +274,10 @@ int main (int argc, char *argv[]) {
     // int minSeedLengthA = minimumSeedLength;
     // int minSeedLengthB = minimumSeedLength;
 
-    fuseSeedsAndBridge fuser(bridgeFinder.bridgeData.getTerminusLength(),MstUtils::toString(workerID));
+    fuseSeedsAndBridge seedFuser(bridgeFinder.bridgeData.getTerminusLength(),MstUtils::toString(workerID));
     if (clashStructure != "") {
         Structure S(clashStructure);
-        fuser.setClashCheck(S);
+        seedFuser.setClashCheck(S);
     }
 
     clashChecker clashCheck;
@@ -309,9 +326,10 @@ int main (int argc, char *argv[]) {
                 // bridgeFinder.writeToMultiPDB(bridgeDirName+"/"+seed_names+".pdb",seed_names);
 
                 // Fuse seeds with bridge
-                fuser.setSeeds(seedA,seedB,seedAOffset,seedBOffset);
-                fuser.setBridgeStructures(bridgeFinder.getVerifiedBridgeStructures());
-                fuser.writeFusedStructuresToPDB();
+                seedFuser.setSeeds(seedA,seedB,seedAOffset,seedBOffset);
+                seedFuser.setBridgeStructures(bridgeFinder.getVerifiedBridgeStructures());
+                seedFuser.fuse();
+                seedFuser.writeFusedStructuresToPDB();
             }
         }
     }

@@ -50,8 +50,8 @@ def getPDBsFromMultiEntryFile(pdbNames,multientryPDBpath,outDir):
     return filenames
     
 
-def addPDBsToSilentFile(filtered_df,multientryPDBpath,silent_binary_name,
-                        targetPDBchains,batch_size,
+def multiPDBtoSilentFile(filtered_df,multientryPDBpath,silent_binary_name,
+                        targetPDBchains,
                         binder_chain_id='0',name_col='name',seq_col='',
                         silentfrompdbs_path='/home/gridsan/sswanson/local_code_mirror/silent_tools/silentfrompdbs'):
     '''
@@ -134,8 +134,8 @@ if __name__ == '__main__':
 
     silent_name = args.silent_name + "_" + str(args.batch_id)
 
-    addPDBsToSilentFile(batch_df,args.multientry_pdb,silent_name,
-                        targetPDBchains,batch_size,
+    multiPDBtoSilentFile(batch_df,args.multientry_pdb,silent_name,
+                        targetPDBchains,
                         binder_chain_id=args.binder_chain_id,name_col=args.name_col,seq_col=args.seq_col,
                         silentfrompdbs_path=args.silentfrompdbs)
 

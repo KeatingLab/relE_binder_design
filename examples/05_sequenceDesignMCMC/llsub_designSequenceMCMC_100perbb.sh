@@ -7,22 +7,26 @@ conda activate terminator_sscore
 
 export PYTHONPATH=$PYTHONPATH:~/local_code_mirror/peptide_binder_design
 export PYTHONPATH=$PYTHONPATH:~/local_code_mirror/TERMinator_sscore
+
 repo=~/local_code_mirror/peptide_binder_design
 
 #LLSUB_RANK=0
-#LLSUB_SIZE=10
+#LLSUB_SIZE=1
 echo $LLSUB_RANK
 echo $LLSUB_SIZE
 
 SECONDS=0
 
 python -u $repo/python/design_sequence/designSequenceMCMC.py \
-      --complex_dataset $PWD/bridgeSeeds_5D94_100kseeds_top1000totalscore_wtarget_modifiedPDBs_list.txt \
-      --binderChainID "A" \
-      --targetChainID "Z" \
-      --model_dir /data1/groups/keatinglab/swans/TERMinator/finetuneCOORDinator_sscore_experiments/selfedge_MLP_64 \
+      --complex_dataset 4FXE_3seeds_structscoreperres-.5_seqstructtop5k_modifiedPDBs_list.txt \
+      --binderChainID "0" \
+      --targetChainID "E" \
+      --model_dir /data1/groups/keatinglab/swans/TERMinator/230310_finetuneCOORDinator_sscore_mpnodeupdate \
       --early_stopping -1 \
       --n 1 \
+      --n_cyc 100 \
+      --n_it 10000 \
+      --Tf 0.5 \
       --n_batches $LLSUB_SIZE \
       --batch_index $LLSUB_RANK
 

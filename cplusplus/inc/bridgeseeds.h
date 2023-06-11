@@ -57,9 +57,12 @@ This makes sense, since when we are trying to connect two seeds we don't have an
 class seedBridgeDB {
     public:
         seedBridgeDB() {};
-        seedBridgeDB(string pathToDBFile) {readDBfromFile(pathToDBFile);}
+        seedBridgeDB(string pathToDBFile, int _maxBridgeLength) {
+            maxBridgeLength = _maxBridgeLength;
+            readDBfromFile(pathToDBFile);
+        }
         ~seedBridgeDB() {
-            for (seedBridge* sB : allBridges) delete sB;
+            allBridges.clear();
             if (structureDB) delete structureDB;
         }
 
@@ -74,8 +77,8 @@ class seedBridgeDB {
         void writeDBtoFile(string pathToDBFile);
         void readDBfromFile(string pathToDBFile);
         
-        seedBridge* getBridge(int uniqueID);
-        const vector<seedBridge*>& getAllBridges() {return allBridges;}
+        shared_ptr<seedBridge> getBridge(int uniqueID);
+        const vector<shared_ptr<seedBridge>>& getAllBridges() {return allBridges;}
         int getMaxBridgeLength() {return maxBridgeLength;}
         int getTerminusLength() {return terminusLength;}
 
@@ -84,7 +87,7 @@ class seedBridgeDB {
 
     private:
         augmentedStructureDB* structureDB = nullptr;
-        vector<seedBridge*> allBridges;
+        vector<shared_ptr<seedBridge>> allBridges;
 
         int maxBridgeLength = -1;
         int terminusLength = 3; // number of residues on either side of the bridge
@@ -92,7 +95,7 @@ class seedBridgeDB {
 
 class findSeedBridge {
     public:
-        findSeedBridge(string pathToBridgeDataDB, string prefix) : bridgeData(pathToBridgeDataDB) {
+        findSeedBridge(string pathToBridgeDataDB, string prefix, int maxBridgeLength) : bridgeData(pathToBridgeDataDB, maxBridgeLength) {
             loadSeedBridgeDataIntoAPV();
             info_out = new fstream;
             MstUtils::openFile(*info_out,prefix+"_RMSDMatches.csv",fstream::out);
@@ -121,9 +124,9 @@ class findSeedBridge {
         
         // For accessing the matches
         vector<int> getVerifiedBridgeLengthDist(string name);
-        vector<vector<Structure*>> getVerifiedBridgeStructures();
+        vector<vector<shared_ptr<Structure>>> getVerifiedBridgeStructures();
         // vector<Structure> getRepresentativeForEachLength();
-        Structure* getAlignedBridgeStructure(seedBridge* sB);
+        shared_ptr<Structure> getAlignedBridgeStructure(seedBridge* sB);
 
         // For storing the matches/fused bridges
         void writeToMultiPDB(string pathToPDB, string bridgeName, int topN = -1);
@@ -148,10 +151,10 @@ class findSeedBridge {
         CartesianPoint queryDistances;
         vector<Atom*> terminalResidueBBAtoms;
 
-        vector<seedBridge*> matches;
-        vector<seedBridge*> verifiedMatches;
+        vector<shared_ptr<seedBridge>> matches;
+        vector<shared_ptr<seedBridge>> verifiedMatches;
 
-        vector<vector<seedBridge*>> matchesByLength;
+        vector<vector<shared_ptr<seedBridge>>> matchesByLength;
 
         RMSDCalculator calc;
 
@@ -169,7 +172,7 @@ class fuseSeedsAndBridge {
         };
 
         ~fuseSeedsAndBridge() {
-            if (!bridges.empty()) for (vector<Structure*> lengthNBridges : bridges) for (Structure* s : lengthNBridges) delete s;
+            if (!bridges.empty()) bridges.clear();
             bridge_out->close();
             delete bridge_out;
             fused_out->close();
@@ -188,15 +191,16 @@ class fuseSeedsAndBridge {
             seedBOffset = _seedBOffset;
         }
 
-        void setBridgeStructures(vector<vector<Structure*>> _bridges) {
-            if (!bridges.empty()) for (vector<Structure*> lengthNBridges : bridges) for (Structure* s : lengthNBridges) delete s;
+        void setBridgeStructures(const vector<vector<shared_ptr<Structure>>>& _bridges) {
+            if (!bridges.empty()) bridges.clear();
             bridges = _bridges;
         }
 
+        vector<shared_ptr<Structure>> fuse();
+
         void writeFusedStructuresToPDB();
 
-        vector<Structure*> clusterBridgeStructures(vector<Structure*> lengthNBridges, int Nstructures, mstreal clusterRMSD = 1.0);
-        
+        vector<shared_ptr<Structure>> clusterBridgeStructures(const vector<shared_ptr<Structure>>& lengthNBridges, int Nstructures, mstreal clusterRMSD = 1.0);
 
     protected:
         vector<Residue*> getFragmentRes(Structure& seed, int startResIdx, int nRes) {
@@ -226,7 +230,7 @@ class fuseSeedsAndBridge {
         int seedAOffset;
         int seedBOffset;
 
-        vector<vector<Structure*>> bridges;
+        vector<vector<shared_ptr<Structure>>> bridges;
 
         fstream* bridge_out = nullptr;
         fstream* fused_out = nullptr;
@@ -234,6 +238,7 @@ class fuseSeedsAndBridge {
         fusionParams params;
         fusionOutput fuserOut;
 
+        vector<shared_ptr<Structure>> all_fused;
 };
 
 class potentialConnectionsSeedGraph {
