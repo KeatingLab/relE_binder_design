@@ -191,7 +191,7 @@ string seedGenerator::generateSeeds() {
     MstUtils::openFile(fragOut,targetName+"_fragments.csv",fstream::out);
     fragOut << "fragName,cenResIdx,chainID,resNum,numMatches,numSeeds" << endl;
     MstUtils::openFile(seedOut,targetName+"_seeds.csv",fstream::out);
-    seedOut << "seedName,numRes" << endl;
+    seedOut << "seedName,numRes,target_idx,target_name,match_res_chain_id,match_res_num,seed_res_chain_id,seed_res_num" << endl;
     multiEntryPDB* pdbOut = nullptr;
     if (params.writeToPDB) {
         pdbOut = new multiEntryPDB(targetName+".seeds.pdb");
@@ -270,6 +270,7 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
         for (fasstSolution sol : fD.matches) {
             // get residues contacting the central residue of the match
             vector<int> matchIndices = F.getMatchResidueIndices(sol);
+            Residue* cenMatchRes = &F.getTarget(sol.getTargetIndex())->getResidue(matchIndices[fD.cenResIdxInFrag]);
             if (!F.isResiduePairBoolPropertyDefined(sol.getTargetIndex(),"vdw")) MstUtils::error("vdw property not defined for this structure in DB","seedGenerator::generateSeedsFromMatches");
             set<int> contactingRes = F.getResiduePairBoolProperty(sol.getTargetIndex(),"vdw",matchIndices[fD.cenResIdxInFrag]);
 
@@ -277,6 +278,7 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
 
             // for each contact, make a seed
             Structure* target = F.getTarget(sol.getTargetIndex());
+            map<Structure*,Residue*> seed2contactR;
             vector<Structure*> seeds;
             for (int contactingResIdx : contactingRes) {
                 // use chain boundaries to restrict which flanking residues are included in the seed
@@ -309,6 +311,8 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
                     seedChain->appendResidue(Rcopy);
                     resNum++;
                 }
+
+                seed2contactR[seed] = contactR;
             }
 
             // transform each seed and see if it clashes with the target backbone
@@ -340,7 +344,12 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
                     } 
                 }
                 seedBin.appendStructure(seed);
-                seedOut << seed->getName() << "," << seed->residueSize() << endl;
+
+                seedOut << seed->getName() << "," << seed->residueSize() << ",";
+                seedOut << sol.getTargetIndex() << "," << F.getTargetName(sol.getTargetIndex()) << ",";
+                seedOut << cenMatchRes->getChainID() << "," << cenMatchRes->getNum() << ",";
+                seedOut << seed2contactR[seed]->getChainID() << "," << seed2contactR[seed]->getNum();
+                seedOut << endl;
 
                 if (pdbOut != nullptr) pdbOut->writeToFile(*seed);
 

@@ -83,6 +83,30 @@ def setChainBFactor(chain, values: list):
     for i,residue in enumerate(chain.get_residues()):
         residue['CA'].set_bfactor(values[i])
 
+# Methods for writing to a silent file
+
+def writeStructuresToSilentFile(structures: list, 
+                                silent_binary_name: str, 
+                                silentfrompdbs: str = '/home/gridsan/sswanson/local_code_mirror/silent_tools/silentfrompdbs'):
+    # Write temporary PDB files
+    warnings.filterwarnings('ignore')
+    io = PDBIO()
+    PDBDir = silent_binary_name + '_temp'
+    shutil.rmtree(PDBDir,ignore_errors=True)
+    pathlib.Path(PDBDir).mkdir(parents=True, exist_ok=True)
+    for structure in structures:
+        io.set_structure(structure)
+        io.save(os.path.join(PDBDir,f"{structure.get_id()}.pdb"))
+
+    # External call to silentfrompdbs
+    command = f"{silentfrompdbs} {PDBDir}/*.pdb > {silent_binary_name}_binder_designs.silent"
+    CompletedProcess = subprocess.run(command,shell=True)
+    if CompletedProcess.returncode != 0:
+        raise ValueError('Subprocess returned an error when trying to create a silent file')
+
+    # delete PDBs and work on next batch
+    shutil.rmtree(silent_binary_name + '_temp')
+    warnings.filterwarnings('default')
 
 # Extend the PDBParser class to parse lines from a file to enable reading of multiPDB files
 class PDBParserEXT(PDBParser):
@@ -270,25 +294,7 @@ class multiPDBLoader:
 
                 structure_list.append(structure)
 
-        # Write temporary PDB files
-        warnings.filterwarnings('ignore')
-        io = PDBIO()
-        PDBDir = silent_binary_name + '_temp'
-        shutil.rmtree(PDBDir,ignore_errors=True)
-        pathlib.Path(PDBDir).mkdir(parents=True, exist_ok=True)
-        for structure in structure_list:
-            io.set_structure(structure)
-            io.save(os.path.join(PDBDir,f"{structure.get_id()}.pdb"))
-
-        # External call to silentfrompdbs
-        command = f"{silentfrompdbs} {PDBDir}/*.pdb > {silent_binary_name}_binder_designs.silent"
-        CompletedProcess = subprocess.run(command,shell=True)
-        if CompletedProcess.returncode != 0:
-            raise ValueError('Subprocess returned an error when trying to create a silent file')
-
-        # delete PDBs and work on next batch
-        shutil.rmtree(silent_binary_name + '_temp')
-        warnings.filterwarnings('default')
+        writeStructuresToSilentFile(structure_list,silent_binary_name,silentfrompdbs)
 
     def __getFilePositions(self):
         # Read through the whole file one time to record all of the contents
