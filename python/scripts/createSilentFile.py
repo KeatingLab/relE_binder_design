@@ -40,8 +40,8 @@ if __name__ == '__main__':
     with multiPDBLoader(args.multientry_pdb) as loader:
         loader.writeToRosettaSilent(batch_df[args.name_col],
                                     name2seqlist,
-                                    target_structure,
                                     silent_name,
+                                    target_structure,
                                     oldname2newname)
 
     print("Done!")

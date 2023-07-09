@@ -1,139 +1,5 @@
 #include "generateseeds.h"
 
-/* --- --- --- --- --- seedBinaryFile --- --- --- --- --- */
-
-bool seedBinaryFile::hasNext() {
-    if (!readMode) MstUtils::error("hasNext not supported in write mode","seedBinaryFile::hasNext");
-    return fs.peek() != EOF;
-}
-
-Structure *seedBinaryFile::next() {
-    if (!readMode) MstUtils::error("next not supported in write mode","seedBinaryFile::next");
-    return readNextFileSection(false).first;
-}
-
-void seedBinaryFile::skip() {
-    if (!readMode) MstUtils::error("skip not supported in write mode","seedBinaryFile::skip");
-    Structure* S = readNextFileSection(false).first;
-    delete S;
-}
-
-void seedBinaryFile::reset() {
-    if (!readMode) MstUtils::error("reset not supported in write mode","seedBinaryFile::reset");
-    fs.clear(); // this is necessary in case ifstream doesn't clear eofbit
-    fs.seekg(0, fs.beg);
-}
-
-void seedBinaryFile::scanFilePositions() {
-    if (!readMode) MstUtils::error("scanFilePositions not supported in write mode","seedBinaryFile::scanFilePositions");
-    MstTimer timer; timer.start();
-    if (!_structureNames.empty()) return;
-    reset();
-    cout << "Scanning file positions..." << endl;
-    _structureNames.clear();
-    int count = 0;
-    while (fs.peek() != EOF) {
-        pair<Structure*,long> next;
-        next = readNextFileSection(true,false);
-        Structure *S = next.first;
-        long pos = next.second;
-        if (pos < 0) {
-            cout << pos << endl;
-        }
-        _filePositions[S->getName()] = pos;
-        _structureNames.push_back(S->getName());
-        // if (count % 10000 == 0) {
-        //     // report values
-        //     cout << "Structure number: " << count << endl;
-        //     cout << "Number of structure names:" << _structureNames.size() << endl;
-        //     cout << "Number of file positions: " << _filePositions.size() << endl;
-        // }
-        delete S;
-        count++;
-    }
-    timer.stop();
-    cout << "Done scanning file, took " << timer.getDuration(MstTimer::msec) / 1000.0 << " sec" << endl;
-}
-
-Structure *seedBinaryFile::getStructureNamed(string name) {
-    if (!readMode) MstUtils::error("getStructureNamed not supported in write mode","seedBinaryFile::getStructureNamed");
-    if (_filePositions.size() == 0) {
-        scanFilePositions();
-    }
-    if (_filePositions.count(name) == 0) MstUtils::error("Structure "+name+" doesn't exist","seedBinaryFile::getStructureName()");
-    fs.seekg(_filePositions[name], fs.beg);
-    return readNextFileSection(false).first;
-}
-
-vector<Structure*> seedBinaryFile::getStructuresNamed(vector<string> names) {
-    vector<Structure*> seeds;
-    for (string name: names) seeds.push_back(getStructureNamed(name));
-    return seeds;
-}
-
-void seedBinaryFile::jumpToStructureIndex(int idx) {
-    if (!readMode) MstUtils::error("jumpToStructureIndex not supported in write mode","seedBinaryFile::jumpToStructureIndex");
-    if (_structureNames.size() == 0) {
-        scanFilePositions();
-    }
-    if (idx < 0) {
-        fs.seekg(0, fs.beg);
-    } else if (idx >= _structureNames.size()) {
-        fs.seekg(0, fs.end);
-    } else {
-        string name = _structureNames[idx];
-        fs.clear();
-        fs.seekg(_filePositions[name], fs.beg);
-    }
-}
-
-void seedBinaryFile::appendStructure(Structure *s) {
-    if (readMode) MstUtils::error("appendStructure not supported in write mode","seedBinaryFile::appendStructure");
-    if (s->residueSize() <= 0) MstUtils::error("Structure must have at least one residue","seedBinaryFile::appendStructure");
-
-    if (!structure_added) {
-        structure_added = true;
-        if (!_append) MstUtils::writeBin(fs,string("seedBinFile")); //write the version at the top of the file
-    } else {
-        MstUtils::writeBin(fs,'E'); //finish the previous section
-    }
-    MstUtils::writeBin(fs,'S'); //start new structure section
-    s->writeData(fs);
-}
-
-void seedBinaryFile::openFileStream() {
-    if (readMode)
-        MstUtils::openFile(fs, _filePath, fstream::in | fstream::binary, "seedBinaryFile::openFileStream");
-    else if (_append)
-        MstUtils::openFile(fs, _filePath, fstream::out | fstream::binary | fstream::app, "seedBinaryFile::openFileStream");
-    else MstUtils::openFile(fs, _filePath, fstream::out | fstream::binary, "seedBinaryFile::openFileStream");
-}
-
-pair<Structure*,long> seedBinaryFile::readNextFileSection(bool save_metadata, bool verbose) {
-    if ((fs.tellg() == 0)) {
-        string version; MstUtils::readBin(fs, version);
-        if (version != "seedBinFile") MstUtils::error("Provided file is not a seed binary file");
-    }
-    Structure* S = new Structure();
-    long pos = fs.tellg();
-    char sect; string prop; mstreal real_val; int dscrt_val;
-    MstUtils::readBin(fs, sect);
-    if (sect != 'S') MstUtils::error("The first section should be a Structure " + _filePath, "seedBinaryFile::readFileSection()");
-    S->readData(fs);
-    if (verbose) cout << S->getName() << endl;
-    MstUtils::readBin(fs, sect);
-    if (sect!='E') MstUtils::error("Section missing terminating 'E'","seedBinaryFile::readNextFileSection");
-    return pair<Structure*,long>(S,pos);
-}
-
-vector<string> seedBinaryFile::getStructureNames() {
-    if (!readMode) MstUtils::error("getStructureNamed not supported in write mode","seedBinaryFile::getStructureNames");
-    if (_filePositions.size() == 0) {
-        scanFilePositions();
-    }
-    return _structureNames;
-}
-
 /* --- --- --- --- --- seedGenerator --- --- --- --- --- */
 
 seedGenerator::seedGenerator(const Structure& _target, string fasstDBPath, seedGenParams _params) : target(_target), params(_params) {
@@ -192,10 +58,10 @@ string seedGenerator::generateSeeds() {
     fragOut << "fragName,cenResIdx,chainID,resNum,numMatches,numSeeds" << endl;
     MstUtils::openFile(seedOut,targetName+"_seeds.csv",fstream::out);
     seedOut << "seedName,numRes,target_idx,target_name,match_res_chain_id,match_res_num,seed_res_chain_id,seed_res_num" << endl;
-    multiEntryPDB* pdbOut = nullptr;
+    multiPDBFile* pdbOut = nullptr;
     if (params.writeToPDB) {
-        pdbOut = new multiEntryPDB(targetName+".seeds.pdb");
-        pdbOut->writeToFile(target,targetName+"_target");
+        pdbOut = new multiPDBFile(targetName+".seeds.pdb",false);
+        pdbOut->addStructure(target,targetName+"_target");
     }
 
     // define a fragment around each binding site residue
@@ -263,7 +129,7 @@ void seedGenerator::findStructuralMatches() {
     }
 }
 
-void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& fragOut, fstream& seedOut, multiEntryPDB* pdbOut) {
+void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& fragOut, fstream& seedOut, multiPDBFile* pdbOut) {
     for (fragmentData& fD: allFragmentsData) {
         cout << "Generate seeds from fragment: " << fD.getName() << endl;
         int seedCount = 0;
@@ -295,8 +161,9 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
                 vector<Residue*> seedRes;
                 Structure* seed = new Structure(); seeds.push_back(seed);
                 // fragmentname_targetidx_matchresidx_seedresidx
-                string seedName = fD.getName() + "_" + MstUtils::toString(sol.getTargetIndex()) + "_" 
-                + MstUtils::toString(matchIndices[fD.cenResIdxInFrag]) + "_" + MstUtils::toString(contactingResIdx);
+                // string seedName = fD.getName() + "_" + MstUtils::toString(sol.getTargetIndex()) + "_" 
+                // + MstUtils::toString(matchIndices[fD.cenResIdxInFrag]) + "_" + MstUtils::toString(contactingResIdx);
+                string seedName = getSeedName(sol.getTargetIndex(),start,end-start+1);
                 seed->setName(seedName);
 
                 Chain* seedChain = seed->appendChain("0",false);
@@ -351,7 +218,7 @@ void seedGenerator::generateSeedsFromMatches(seedBinaryFile& seedBin, fstream& f
                 seedOut << seed2contactR[seed]->getChainID() << "," << seed2contactR[seed]->getNum();
                 seedOut << endl;
 
-                if (pdbOut != nullptr) pdbOut->writeToFile(*seed);
+                if (pdbOut != nullptr) pdbOut->addStructure(*seed);
 
                 delete seed;
                 seedCount++;

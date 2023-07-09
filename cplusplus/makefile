@@ -56,6 +56,9 @@ OBJECTS     := $(filter-out $(BUILDDIR)/python.o, $(OBJECTS))
 # Main Targets
 ##############
 
+.PHONY: prog
+prog: $(PROGRAMS)
+
 .PHONY: all
 all: $(PROGRAMS) $(TESTPROGS) $(HELPERPROGRAMS)
 

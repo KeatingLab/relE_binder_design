@@ -5,6 +5,7 @@
 #include "generateseeds.h"
 #include "scoreinterface.h"
 #include "residuecontact.h"
+#include "utilitiesio.h"
 
 #include <chrono>
 

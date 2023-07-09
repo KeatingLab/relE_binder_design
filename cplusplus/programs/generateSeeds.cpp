@@ -4,7 +4,7 @@
 #include "generateseeds.h"
 #include "residuecontact.h"
 #include "utilities.h"
-
+#include "utilitiesio.h"
 
 int main(int argc, char *argv[]) {
     MstOptions op;

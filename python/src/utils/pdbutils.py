@@ -1,5 +1,6 @@
 import argparse
 import os
+import regex as re
 import glob
 import json
 import pickle
@@ -252,12 +253,14 @@ class multiPDBLoader:
 
     def writeToRosettaSilent(self,
                              names: list,
-                             name2seqlist: dict,
-                             target_structure,
+                             name2seqdict: dict,
                              silent_binary_name: str,
+                             target_structure = None,
                              remap_names: dict = None,
                              silentfrompdbs: str = '/home/gridsan/sswanson/local_code_mirror/silent_tools/silentfrompdbs',
                              binder_chain_id: str = '0'):
+        
+        print(f"Load {len(names)} structures and add to silent file")
 
         # Load each unique backbone structure 
         name_subset = set(names)
@@ -265,7 +268,7 @@ class multiPDBLoader:
 
         # We create a new structure for each backbone + sequence pair
         structure_list = []
-        for name,seq_list in name2seqlist.items():
+        for name,seq_list in name2seqdict.items():
             for i,seq in enumerate(seq_list):
                 # copy before modifying object
                 structure = deepcopy(name2structure[name])
@@ -280,17 +283,18 @@ class multiPDBLoader:
                 modifyStructure(structure,{binder_chain_id},{binder_chain_id:1},{binder_chain_id:'A'})
                 
                 # add target chain, renumbering according to length of binder chain
-                target_structure_copy = deepcopy(target_structure)
-                resnum_start = len(structure[0]['A'])+1
-                for i,target_chain in enumerate(target_structure_copy.get_chains()):
-                    target_structure_copy[0].detach_child(target_chain.id)
-                    
-                    # renumber and alter chain id
-                    renumberChain(target_chain,resnum_start)
-                    target_chain.id = string.ascii_uppercase[i+1]
+                if target_structure is not None:
+                    target_structure_copy = deepcopy(target_structure)
+                    resnum_start = len(structure[0]['A'])+1
+                    for i,target_chain in enumerate(target_structure_copy.get_chains()):
+                        target_structure_copy[0].detach_child(target_chain.id)
+                        
+                        # renumber and alter chain id
+                        renumberChain(target_chain,resnum_start)
+                        target_chain.id = string.ascii_uppercase[i+1]
 
-                    structure[0].add(target_chain)
-                    resnum_start += len(target_chain)
+                        structure[0].add(target_chain)
+                        resnum_start += len(target_chain)
 
                 structure_list.append(structure)
 
@@ -333,7 +337,7 @@ class multiPDBLoader:
     def __readLines(self):
         lines = []
         line = ''
-        while line != 'END\n':
+        while re.match("^END",line) is None:
             line = self.fileh.readline()
             lines.append(line)
         return lines
@@ -351,14 +355,22 @@ class multiPDBWriter:
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
+        self.fileh.write("FILEEND\n")
         self.fileh.close()
 
     def addStructuresFromPDBs(self, pdb_paths: list, names: list = None, selChainID: str = ''):
-        assert len(pdb_paths) == len(names)
+        if names is not None:
+            assert len(pdb_paths) == len(names)
+        parser = PDBParserEXT()
         for i,pdb_path in enumerate(pdb_paths):
-            name = names[i]
-            parser = PDBParserEXT()
-            structure = parser.get_structure(name,pdb_path)
+            if i % int(len(pdb_paths)/10) == 0:
+                print(f"Adding structure {i}/{len(pdb_paths)}...")
+            if names is not None:
+                name = names[i]
+                structure = parser.get_structure(name,pdb_path)
+            else:
+                name = pathlib.Path(pdb_path).stem
+                structure = parser.get_structure(name,pdb_path)
             if selChainID != '':
                 chains = list(structure.get_chains())
                 for chain in chains:

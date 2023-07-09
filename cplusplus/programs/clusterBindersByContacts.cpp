@@ -164,6 +164,8 @@ int main(int argc, char *argv[]) {
         // cout << "Binder name: " << s.getName() << endl;
         potConts.setBinderResidues(s->getResidues());
         vector<pair<Residue *, Residue *>> contacts = potConts.getContacts();
+        mstreal contacts_per_residue = mstreal(contacts.size())/mstreal(s->residueSize());
+        if (contacts_per_residue < 2.0) cout << "Warning: contacts per residue is only " << contacts_per_residue << " for " << s->getName() << endl;
         // cout << "Binder has " << contacts.size() << " contacts" << endl;
         // Generate contact pairs for each binder
         set<string> contact_pair_hashes = generateContactPairSet(contacts, binderChainResidueDistance);

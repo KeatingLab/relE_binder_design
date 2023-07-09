@@ -148,7 +148,7 @@ void seedBridgeDB::writeDBtoFile(string pathToDBFile) {
     ofs.close();
 }
 
-void seedBridgeDB::readDBfromFile(string pathToDBFile) {
+void seedBridgeDB::readDBfromFile(string pathToDBFile, mstreal debug_fraction) {
     cout << "Reading bridge binary database from file... filtering out bridges with > " << maxBridgeLength << " residues" << endl;
     fstream ifs;
     MstUtils::openFile(ifs,pathToDBFile,fstream::in|fstream::binary);
@@ -172,6 +172,7 @@ void seedBridgeDB::readDBfromFile(string pathToDBFile) {
         sB->readFromBin(ifs);
         if ((maxBridgeLength < 0)||(sB->getBridgeLength() <= maxBridgeLength)) {
             sB->setUniqueID(allBridges.size());
+            if ((debug_fraction > 0)&&(MstUtils::randUnit() >= debug_fraction)) continue;
             allBridges.push_back(sB);
         }
         // no need to delete, now that we're using shared pointers
@@ -200,7 +201,10 @@ vector<Atom*> seedBridgeDB::getBridgeTerminusFromDB(seedBridge* sB) {
 Structure seedBridgeDB::getBridgeAndTerminusFromDB(seedBridge* sB) {
     if (!structureDB) MstUtils::error("Must load protein structure DB in order to extract bridge terminus from DB");
     const Structure& target = structureDB->getTarget(sB->getTargetID());
-    return sB->getBridgeTerminusFromStructure(&target.getResidue(sB->getNtermResIdx()),&target.getResidue(sB->getCtermResIdx()),terminusLength,false);
+    Structure bridgeAndTerminus = sB->getBridgeTerminusFromStructure(&target.getResidue(sB->getNtermResIdx()),&target.getResidue(sB->getCtermResIdx()),terminusLength,false);
+    string newName = MstUtils::toString(sB->getTargetID())+"-"+MstUtils::toString(sB->getNtermResIdx())+"-"+MstUtils::toString(bridgeAndTerminus.residueSize());
+    bridgeAndTerminus.setName(newName);
+    return bridgeAndTerminus;
 }
 
 /* --- --- --- --- --- findSeedBridge --- --- --- --- --- */
@@ -212,6 +216,20 @@ void findSeedBridge::reportAPVBoundaries() {
     cout << "yhi: " << PS.getYHigh() << endl;
     cout << "zlo: " << PS.getZLow() << endl;
     cout << "zhi: " << PS.getZHigh() << endl;
+}
+
+void findSeedBridge::setSearchQuery(const shared_ptr<Structure>& nTermSeed, const shared_ptr<Structure>& cTermSeed, int S1CterminusResOffset, int S2NterminusResOffset) {
+    // define the query based on distances between the terminal residues
+    if ((nTermSeed->residueSize() - S1CterminusResOffset < bridgeData.getTerminusLength())||(cTermSeed->residueSize() - S2NterminusResOffset < bridgeData.getTerminusLength())) 
+        MstUtils::error("Provided nTermStructure with n_residues: "+MstUtils::toString(nTermSeed->residueSize())+", offset: "+MstUtils::toString(S1CterminusResOffset)
+        +" and cTermStructure with n_residues: "+MstUtils::toString(cTermSeed->residueSize())+", offset: "+MstUtils::toString(S2NterminusResOffset)
+        +" not compatible with terminus length: "+MstUtils::toString(bridgeData.getTerminusLength())+")","findSeedBridge::searchSeeds");
+    Residue* ntermR = &nTermSeed->getResidue(nTermSeed->residueSize()-1-S1CterminusResOffset);
+    Residue* ctermR = &cTermSeed->getResidue(0+S2NterminusResOffset);
+    queryDistances = seedBridge::findCADistances(ntermR,ctermR);
+
+    // extract the terminal residues to make a new structure that is used when verifying by superposition
+    terminalResidueBBAtoms = seedBridge::getBridgeTerminusFromStructure(ntermR,ctermR,bridgeData.getTerminusLength(),true);
 }
 
 void findSeedBridge::setSearchQuery(Structure* nTermSeed, Structure* cTermSeed, int S1CterminusResOffset, int S2NterminusResOffset) {
@@ -341,6 +359,35 @@ vector<vector<shared_ptr<Structure>>> findSeedBridge::getVerifiedBridgeStructure
         result[sB->getBridgeLength()].push_back(getAlignedBridgeStructure(sB.get()));
     }
     return result;
+}
+
+vector<vector<shared_ptr<Structure>>> findSeedBridge::getVerifiedClusteredBridgeStructures(bool verbose) {
+    vector<vector<shared_ptr<Structure>>> result, bridge_structures;
+    bridge_structures = findSeedBridge::getVerifiedBridgeStructures();
+    result.resize(bridge_structures.size());
+    for (int bridge_length = 0; bridge_length < bridge_structures.size(); bridge_length++) {
+        vector<shared_ptr<Structure>>& lengthNBridges = bridge_structures[bridge_length];
+        if (lengthNBridges.empty()) continue;
+        vector<shared_ptr<Structure>> clusterReps = clusterBridgeStructures(lengthNBridges,1000,0.75);
+        if (verbose) cout << "After clustering, found " << clusterReps.size() << " clusters for bridges of length " << bridge_length << endl;
+        result[bridge_length] = clusterReps;
+    }
+    return result;
+}
+
+vector<shared_ptr<Structure>> findSeedBridge::clusterBridgeStructures(const vector<shared_ptr<Structure>>& lengthNBridges, int Nstructures, mstreal clusterRMSD) {
+    vector<vector<Atom*>> bridgeAtoms;
+    int count = 1;
+    for (const shared_ptr<Structure>& s : lengthNBridges) {
+        if (count > Nstructures) break;
+        bridgeAtoms.push_back(s->getAtoms());
+        count++;
+    }
+    Clusterer cl;
+    vector<vector<int>> clusters = cl.greedyCluster(bridgeAtoms,clusterRMSD);
+    vector<shared_ptr<Structure>> clusterReps;
+    for (int i = 0; i < clusters.size(); i++) clusterReps.push_back(lengthNBridges[clusters[i][0]]);
+    return clusterReps;
 }
 
 // vector<Structure> findSeedBridge::getRepresentativeForEachLength() {

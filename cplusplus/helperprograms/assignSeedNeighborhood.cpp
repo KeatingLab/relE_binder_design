@@ -7,6 +7,7 @@
 #include "residuecontact.h"
 #include "residueframe.h"
 #include "utilities.h"
+#include "utilitiesio.h"
 
 int main(int argc, char *argv[]) {
     MstOptions op;

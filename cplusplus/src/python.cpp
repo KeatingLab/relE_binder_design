@@ -10,6 +10,7 @@
 #include "generateseeds.h"
 #include "residuecontact.h"
 #include "utilities.h"
+#include "utilitiesio.h"
 
 // Source: https://stackoverflow.com/questions/15842126/feeding-a-python-list-into-a-function-taking-in-a-vector-with-boost-python/15940413#15940413
 

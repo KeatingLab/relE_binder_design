@@ -6,6 +6,7 @@
 #include "residuecontact.h"
 #include "residueframe.h"
 #include "utilities.h"
+#include "utilitiesio.h"
 
 vector<Atom*> extractChainBBAtoms(Structure& S, string chainID, bool binder) {
     vector<Chain*> selectedChains;

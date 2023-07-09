@@ -166,6 +166,7 @@ class twoDimHistogram {
 };
 
 class lineSDF {
+    // line signed distance function for counting the number of objects between two points
     // Derivation from an Inigo Quilez video https://youtu.be/PMltMdi1Wzg
     public:
         lineSDF(CartesianPoint _A, CartesianPoint _B, bool _roundedEdges = false) : A(_A), B(_B), roundedEdges(_roundedEdges) {;}
