@@ -55,6 +55,7 @@ int main (int argc, char *argv[]) {
     op.addOption("maxBridgeLength","Loop regions connecting seeds will contain no more than this many residues (default: 8 residues)",false);
     op.addOption("workerID","The 0-indexed unique index for this job, e.g. ${SLURM_ARRAY_TASK_ID} (default = 0)",false);
     op.addOption("nWorkers","The total number of jobs running in parallel (default = 1)",false);
+    op.addOption("debugN","",false);
     op.addOption("verbose","");
     // op.addOption("selectedSeed","Either the path to PDB file or the name of a seed in the binary file. If provided, will ONLY search for bridges between this seed and the other seeds (either all seeds in the binary file, or just those in the list)",false);
     op.setOptions(argc,argv);
@@ -84,6 +85,7 @@ int main (int argc, char *argv[]) {
     int maxBridgeLength = op.getInt("maxBridgeLength",8);
     int workerID = op.getInt("workerID",0);
     int nWorkers = op.getInt("nWorkers",1);
+    int debugN = op.getInt("debugN",-1);
     bool verbose = true; // op.isGiven("verbose");
 
     int overlapLength = 3;
@@ -105,9 +107,8 @@ int main (int argc, char *argv[]) {
     
     //// Load DBs, seeds, and topology data
     // Load the bridge distances/structures from which the distances were calculated
-    findSeedBridge bridgeFinder(op.getString("bridgeDB"),MstUtils::toString(workerID),maxBridgeLength);
+    findSeedBridge bridgeFinder(op.getString("bridgeDB"),op.getString("structureDB"),MstUtils::toString(workerID),maxBridgeLength,debugN);
     bridgeFinder.setMaxSeedDistance(maxSeedTerminiDistance);
-    bridgeFinder.loadStructureDB(op.getString("structureDB"));
     bridgeFinder.reportAPVBoundaries();
     
     seedPairDistributor seedPairs(workerID,nWorkers,true);
@@ -165,6 +166,7 @@ int main (int argc, char *argv[]) {
     // If some seeds are derived from previous fusion topologies, we load them now 
     map<string,shared_ptr<fragmentTopology>> previousTopologies;
     if (previousRunDirPath != "") {
+        cout << "Loading original topologies and fragments from previous directory" << endl;
         // load old topoDB
         string oldTopoDBpath = previousRunDirPath + "/topoDB.json";
         topologyDB oldTopoDB;
@@ -177,14 +179,15 @@ int main (int argc, char *argv[]) {
 
         // check if any of the 'seeds' (which correspond to fusion topologies) are in the topoDB
         vector<string> all_seed_names = seedPairs.getAllSeedNames();
+        cout << all_seed_names.size() << " seeds to search for in the old directory" << endl;
         for (string seed_name : all_seed_names) {
             if (oldTopoDB.isTopoInDB(seed_name)) {
                 // if in DB, copy the fragments, create fragmentTopology, add to map
-                shared_ptr<fragmentTopology> fT = oldTopoDB.getTopologyFromDB(seed_name,oldFragDB);
+                shared_ptr<fragmentTopology> fT = oldTopoDB.getTopologyFromDB(seed_name,oldFragDB,seedPairs.getSeedByName(seed_name));
                 previousTopologies[seed_name] = fT;
             }
         }
-
+        cout << "Loaded the topologies for " << previousTopologies.size() << " seeds" << endl;
     }
 
     // Create info file for this job
@@ -278,7 +281,11 @@ int main (int argc, char *argv[]) {
                         if (previousTopologies.count(seedA->getName()) == 0) {
                             topo.addInitialFragment(seedA,3,0,seedAOffset);
                         } else {
-                            topo.addMultipleTopologyElements(previousTopologies[seedA->getName()]->getFragments());
+                            vector<shared_ptr<topologyElement>> new_fragments_copy;
+                            for (shared_ptr<topologyElement> tE : previousTopologies[seedA->getName()]->getFragments()) new_fragments_copy.push_back(make_shared<topologyElement>(*tE));
+                            topo.sortTopology(new_fragments_copy);
+                            new_fragments_copy.back()->cterm_trim += seedAOffset;
+                            topo.addMultipleTopologyElements(new_fragments_copy);
                         }
                         // Add connector 
                         topo.addFragmentToEnd(connector,3,true,0,0,false);
@@ -286,7 +293,15 @@ int main (int argc, char *argv[]) {
                         if (previousTopologies.count(seedB->getName()) == 0) {
                             topo.addFragmentToEnd(seedB,3,true,seedBOffset,0);
                         } else {
-                            topo.addMultipleTopologyElements(previousTopologies[seedB->getName()]->getFragments());
+                            vector<shared_ptr<topologyElement>> new_fragments_copy;
+                            for (shared_ptr<topologyElement> tE : previousTopologies[seedB->getName()]->getFragments()) new_fragments_copy.push_back(make_shared<topologyElement>(*tE));
+                            topo.sortTopology(new_fragments_copy);
+                            new_fragments_copy.front()->nterm_trim += seedBOffset;
+                            for (shared_ptr<topologyElement> tE : new_fragments_copy) {
+                                if (tE == new_fragments_copy.front()) continue;
+                                tE->topologyPosition -= seedBOffset;
+                            }
+                            topo.addMultipleTopologyElements(new_fragments_copy);
                         }
                         topo.reportTopology();
                         shared_ptr<Structure> fused = topo.fuseTopology();

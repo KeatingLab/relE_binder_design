@@ -157,7 +157,6 @@ int main(int argc, char *argv[]) {
     }
     vector<string> binderNames = getBinderNames(binderPDBs);
 
-
     vector<set<string>> contact_pair_hash_all;
     cout << "Finding contacts and generating contact pair hashes..." << endl;
     for (Structure* s : binderPDBs) {

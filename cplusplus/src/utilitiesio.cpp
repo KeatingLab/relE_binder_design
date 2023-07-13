@@ -196,7 +196,7 @@ void seedPairDistributor::setSeedGroupAsym(vector<shared_ptr<Structure>> seeds_A
     */
     cout << "Setting asymmetric seed groups..." << endl;
     symMode = false;
-    
+
     // vector<shared_ptr<Structure>> seeds_fromname_A = loadSeedsFromSeedBin(seed_names_A);
     // vector<shared_ptr<Structure>> seeds_fromname_B = loadSeedsFromSeedBin(seed_names_B);
     
@@ -244,6 +244,7 @@ void seedPairDistributor::setSeedGroupAsym(vector<shared_ptr<Structure>> seeds_A
         if (checkForOverlap(seed_group_A,seed_group_B)) MstUtils::error("Group A and B seeds have overlapping names","seedPairDistributor::setSeedGroupAsym");
     }
     create1DJobArray();
+    updateName2Seed();
     cout << "(symMode = false) After deduplicating, seed group A: " << seed_group_A.size() << ", seed group B: " << seed_group_B.size() << ", and total number of pairs: " << job_array.size() << endl;
 }
 

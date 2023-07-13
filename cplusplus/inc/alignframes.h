@@ -33,7 +33,7 @@ class augmentedStructureDB {
 
         void addTarget(augmentedStructure *S);
         void addTarget(const augmentedStructure &S);
-        void readDBFile(string dbPath);
+        void readDBFile(string dbPath, int debug_N = -1);
         void writeDBFile(string dbPath);
 
         const set<int>& getContacts(int target_i, int res_i, bool BBint = false);

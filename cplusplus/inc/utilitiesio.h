@@ -209,6 +209,7 @@ class seedPairDistributor {
             seed_group_B = seeds;
 
             create1DJobArray();
+            updateName2Seed();
             cout << "(symMode = true) seed group A: " << seed_group_A.size() << ", seed group B: " << seed_group_B.size() << ", and total number of pairs: " << job_array.size() << endl;
         }
 
@@ -230,6 +231,11 @@ class seedPairDistributor {
             for (shared_ptr<Structure> sA : seed_group_A) ret.push_back(sA->getName());
             for (shared_ptr<Structure> sB : seed_group_B) ret.push_back(sB->getName());
             return ret;
+        }
+
+        shared_ptr<Structure> getSeedByName(string name) {
+            if (name2seed.count(name) == 0) MstUtils::error("That seed aint done been loaded, partner","seedPairDistributor::getSeedByName");
+            return name2seed[name];
         }
 
     protected:
@@ -287,6 +293,11 @@ class seedPairDistributor {
             cout << "nWorkers: " << nWorkers << ", workerID: " << workerID << ", current_index: " << current_index << ", max_index: " << max_index << endl;
         }
 
+        void updateName2Seed() {
+            for (shared_ptr<Structure> sA : seed_group_A) name2seed[sA->getName()] = sA;
+            for (shared_ptr<Structure> sB : seed_group_B) name2seed[sB->getName()] = sB;
+        }
+
     private:
         int workerID = 0; // workers are 0-indexed
         int nWorkers = 1;
@@ -305,6 +316,7 @@ class seedPairDistributor {
         vector<shared_ptr<Structure>> seed_group_A;
         vector<shared_ptr<Structure>> seed_group_B;
         vector<pair<int,int>> job_array;
+        map<string,shared_ptr<Structure>> name2seed;
 };
 
 // class seedPairDistributor {

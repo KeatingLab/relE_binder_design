@@ -148,7 +148,7 @@ void seedBridgeDB::writeDBtoFile(string pathToDBFile) {
     ofs.close();
 }
 
-void seedBridgeDB::readDBfromFile(string pathToDBFile, mstreal debug_fraction) {
+void seedBridgeDB::readDBfromFile(string pathToDBFile) {
     cout << "Reading bridge binary database from file... filtering out bridges with > " << maxBridgeLength << " residues" << endl;
     fstream ifs;
     MstUtils::openFile(ifs,pathToDBFile,fstream::in|fstream::binary);
@@ -171,8 +171,11 @@ void seedBridgeDB::readDBfromFile(string pathToDBFile, mstreal debug_fraction) {
         shared_ptr<seedBridge> sB = make_shared<seedBridge>();
         sB->readFromBin(ifs);
         if ((maxBridgeLength < 0)||(sB->getBridgeLength() <= maxBridgeLength)) {
+            // Debugging feature: only load a fraction of protein structures
+            // in this case we only keep a seed bridge if it comes from a protein structure that we chose to load
+            if ((structureDB!=nullptr)&&(sB->getTargetID() > structureDB->numTargets()-1)) continue;
+
             sB->setUniqueID(allBridges.size());
-            if ((debug_fraction > 0)&&(MstUtils::randUnit() >= debug_fraction)) continue;
             allBridges.push_back(sB);
         }
         // no need to delete, now that we're using shared pointers

@@ -31,7 +31,7 @@ void augmentedStructureDB::addTarget(const augmentedStructure &S)
     targets.push_back(newTarget);
 }
 
-void augmentedStructureDB::readDBFile(string dbPath)
+void augmentedStructureDB::readDBFile(string dbPath, int debug_N)
 {
     cout << "Reading the structure DB..." << endl;
     MstTimer timer; timer.start();
@@ -86,6 +86,7 @@ void augmentedStructureDB::readDBFile(string dbPath)
             }
         }
         ti++;
+        if ((debug_N > 0)&&(ti >= debug_N)) break;
     }
     ifs.close();
     timer.stop();

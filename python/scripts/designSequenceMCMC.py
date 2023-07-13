@@ -115,15 +115,34 @@ def get_seq_const_from_name(native_seq,target_chain_len,bridge_name,fixedSeedNam
     print(selRes)
     return selRes
 
+def get_seq_const_from_name(fixed_seed_name,topology_db,fused_name,fused_sequence):
+    assert fused_name in topology_db
+    assert fixed_seed_name in topology_db[fused_name]
+    fixed_seed_data = topology_db[fused_name][fixed_seed_name]
+    # Get the sequence (apply the trim too)
+    nterm_trim = fixed_seed_data["nterm_trim"]
+    cterm_trim = fixed_seed_data["cterm_trim"]
+    fixed_seed_seq = fixed_seed_data["aaSeq"][nterm_trim:-cterm_trim] if cterm_trim > 0 else fixed_seed_data["aaSeq"][nterm_trim:]
+    
+    # get the residue selection (these are residues are variable)
+    start_res = fixed_seed_data["topologyPosition"]
+    fused_length = len(fused_sequence)
+    selRes = residueGroup('0',set([str(x) for x in range(0,fused_length) if ((x < start_res) or (x > start_res+len(fixed_seed_seq)))]))
+    print(selRes)
+    new_fused_sequence = fused_sequence[:start_res] + fixed_seed_seq + fused_sequence[start_res+len(fixed_seed_seq):]
+    print(f"Old fused sequence: {fused_sequence}, fixed sequence: {fixed_seed_seq} and position: {start_res}, new fused sequence: {new_fused_sequence}")
+    return selRes,new_fused_sequence
+
+
 def get_native_seq(native_seq,start_res_idx,end_res_idx):
     return native_seq[start_res_idx:end_res_idx+1]
 
 def main(args, binder_subset, process_number):
     if (args.binder_dataset):
         if args.dev == 'cpu':
-            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,500,binder_subset,mode="complex_only")
+            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,500,binder_subset,mode="complex_only",name_binder_only=True)
         else:
-            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,27500,binder_subset,mode="complex_only")
+            dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb,27500,binder_subset,mode="complex_only",name_binder_only=True)
         dataset_iter = iter(dataset)
     elif (args.complex_dataset):
         dataset = ComplexScoringDataset("",binder_subset,args.targetChainID,args.binderChainID,mode="complex_only")
@@ -173,6 +192,12 @@ def main(args, binder_subset, process_number):
 
     # Initialize the model
     terminator = TERMinator(hparams=model_hparams, device=args.dev)
+
+    # If given, load the topology DB
+    topology_db = None
+    if (args.topologyDB != ""):
+        with open(args.topologyDB,'r') as file:
+            topology_db = json.load(file)
 
     # Load weights from the best checkpoint during training
     best_checkpoint_state = torch.load(os.path.join(args.model_dir, 'net_best_checkpoint.pt'), map_location=args.dev)
@@ -249,14 +274,14 @@ def main(args, binder_subset, process_number):
                 target_chain_len = net_out['chain_lens'][0]
                 print(target_chain_len)
                 print(native_seq[:target_chain_len])
-                target_constraint_seq = native_seq[:target_chain_len] + len(native_seq[target_chain_len:])*'X'
-                print('constraint sequence: ',target_constraint_seq)
+                # target_constraint_seq = native_seq[:target_chain_len] + len(native_seq[target_chain_len:])*'X'
+                # print('constraint sequence: ',target_constraint_seq)
                 
                 if args.fixed_fragment_name != "":
-                    selRes = get_seq_const_from_name(native_seq,target_chain_len,bridge_name,args.fixed_fragment_name)
-                    if selRes == None:
-                        print("Could not generate constraint sequence from name, skipping")
-                        continue
+                    fused_peptide_sequence = native_seq[target_chain_len:]
+                    selRes,new_fused_peptide_sequence = get_seq_const_from_name(args.fixed_fragment_name,topology_db,bridge_name,fused_peptide_sequence)
+                    # make sure the fixed region has the correct sequence
+                    native_seq = native_seq[:target_chain_len] + new_fused_peptide_sequence
                 else:
                     selRes = residueGroup(args.binderChainID)
                 
@@ -338,10 +363,10 @@ def main(args, binder_subset, process_number):
                 print('constraint sequence: ',target_constraint_seq)
                 
                 if args.fixed_fragment_name != "":
-                    selRes = get_seq_const_from_name(native_seq,target_chain_len,bridge_name,args.fixed_fragment_name)
-                    if selRes == None:
-                        print("Could not generate constraint sequence from name, skipping")
-                        continue
+                    fused_peptide_sequence = native_seq[target_chain_len:]
+                    selRes,new_fused_peptide_sequence = get_seq_const_from_name(args.fixed_fragment_name,topology_db,bridge_name,fused_peptide_sequence)
+                    # make sure the fixed region has the correct sequence
+                    native_seq = native_seq[:target_chain_len] + new_fused_peptide_sequence
                 else:
                     selRes = residueGroup(args.binderChainID)
                 
@@ -368,6 +393,7 @@ if __name__ == '__main__':
     parser.add_argument('--target_pdb',help='pdb file describing the structure of the target protein', default='')
     # parser.add_argument('--fix_native_seq',help='the name of the region of the peptide that has a fixed sequence',action=)
     parser.add_argument('--fixed_fragment_name',help='the name of the region of the design that should maintain its fixed sequence', default='')
+    parser.add_argument('--topologyDB',help='A JSON file that lists the fragments that compose a fused backbone, their position in the backbone, and their sequence. Required if --fixed_fragment_name is given',default='')
     parser.add_argument('--binderChainID',help='',default='')
     parser.add_argument('--targetChainID',help='',default='')
     parser.add_argument('--model_dir', help='trained model folder', required=True)

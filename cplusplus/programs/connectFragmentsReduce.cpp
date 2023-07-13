@@ -15,7 +15,7 @@ int main (int argc, char *argv[]) {
 
     // Load info file to see how many jobs were attempted
     vector<string> lines = MstUtils::fileToArray("job_info.txt");
-    if (lines.size() != 3) MstUtils::error("Wrong number of lines in info file","main");
+    if (lines.size() != 6) MstUtils::error("Wrong number of lines in info file","main");
     vector<string> split_line = MstUtils::split(lines[5]);
     if (split_line[0] != "nworkers") MstUtils::error("Line is ill-formatted","main");
     int nWorkers = MstUtils::toInt(split_line[1]);

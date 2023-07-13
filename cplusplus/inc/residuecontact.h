@@ -49,11 +49,13 @@ public:
     ~clashChecker() {if (PS != nullptr) delete PS;}
 
     void setStructure(Structure& S) {
+        if (PS!=nullptr) delete PS;
         atoms = AtomPointerVector(S.getAtoms());
         PS = new ProximitySearch(atoms,2.0);
     }
 
     void setResidues(vector<Residue*> res) {
+        if (PS!=nullptr) delete PS;
         atoms = AtomPointerVector();
         for (Residue* R: res) atoms.push_back(R);
         PS = new ProximitySearch(atoms,2.0);

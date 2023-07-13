@@ -62,27 +62,28 @@ This makes sense, since when we are trying to connect two seeds we don't have an
 
 class seedBridgeDB {
     public:
-        seedBridgeDB() {};
-        seedBridgeDB(string pathToDBFile, int _maxBridgeLength, mstreal _debug_fraction = -1.0) {
-            debug_fraction = _debug_fraction;
+        seedBridgeDB(int _maxBridgeLength) {
             maxBridgeLength = _maxBridgeLength;
-            readDBfromFile(pathToDBFile, debug_fraction);
+        };
+        seedBridgeDB(string pathToDBFile, int _maxBridgeLength) {
+            maxBridgeLength = _maxBridgeLength;
+            readDBfromFile(pathToDBFile);
         }
         ~seedBridgeDB() {
             allBridges.clear();
             if (structureDB) delete structureDB;
         }
 
-        void loadProteinStructures(string pathToStructureDB) {
+        void loadProteinStructures(string pathToStructureDB, int debug_N = -1) {
             if (structureDB) delete structureDB;
             structureDB = new augmentedStructureDB();
-            structureDB->readDBFile(pathToStructureDB);
+            structureDB->readDBFile(pathToStructureDB,debug_N);
         }
         void unloadProteinStructures() {delete structureDB; structureDB = nullptr;}
         
         void buildDBfromStructures(int _maxBridgeLen = 15);
         void writeDBtoFile(string pathToDBFile);
-        void readDBfromFile(string pathToDBFile, mstreal debug_fraction);
+        void readDBfromFile(string pathToDBFile);
         
         shared_ptr<seedBridge> getBridge(int uniqueID);
         const vector<shared_ptr<seedBridge>>& getAllBridges() {return allBridges;}
@@ -102,7 +103,9 @@ class seedBridgeDB {
 
 class findSeedBridge {
     public:
-        findSeedBridge(string pathToBridgeDataDB, string prefix, int maxBridgeLength, mstreal debug_fraction = - 1.0) : bridgeData(pathToBridgeDataDB, maxBridgeLength) {
+        findSeedBridge(string pathToBridgeDataDB, string pathToStructureDB, string prefix, int maxBridgeLength, int debug_N = -1) : bridgeData(maxBridgeLength) {
+            bridgeData.loadProteinStructures(pathToStructureDB,debug_N);
+            bridgeData.readDBfromFile(pathToBridgeDataDB);
             loadSeedBridgeDataIntoAPV();
             info_out = new fstream;
             MstUtils::openFile(*info_out,prefix+"_RMSDMatches.csv",fstream::out);
@@ -305,37 +308,32 @@ class fragmentTopology {
             if (currentLength == 0) {
                 // Doesn't matter: add to C-terminus starting at topPos 0
                 for (shared_ptr<topologyElement> tE : new_fragments) {
-                    shared_ptr<topologyElement> newtE = make_shared<topologyElement>(*tE);
-                    if (currentLength > 0) checkIfFragmentIsValidExtension(newtE->topologyPosition,newtE->getResidueSize());
-                    fragments.push_back(newtE);
+                    if (currentLength > 0) checkIfFragmentIsValidExtension(tE->topologyPosition,tE->getResidueSize(),tE->name);
+                    fragments.push_back(tE);
                     updateCurrentLength();
                 }
             } else if (cterm) {
                 // C-term extension
                 int topologyPosAdjust = currentLength - overlap;
                 for (shared_ptr<topologyElement> tE : new_fragments) {
-                    shared_ptr<topologyElement> newtE = make_shared<topologyElement>(*tE);
-                    newtE->topologyPosition += topologyPosAdjust;
-                    checkIfFragmentIsValidExtension(newtE->topologyPosition,newtE->getResidueSize());
-                    fragments.push_back(newtE);
+                    tE->topologyPosition += topologyPosAdjust;
+                    checkIfFragmentIsValidExtension(tE->topologyPosition,tE->getResidueSize(),tE->name);
+                    fragments.push_back(tE);
                     updateCurrentLength();
                 }
             } else {
                 // N-term extension
-                vector<shared_ptr<topologyElement>> new_fragments_copy;
-                for (shared_ptr<topologyElement> tE : new_fragments) new_fragments_copy.push_back(make_shared<topologyElement>(*tE));
-
                 // Add C-terminal fragments first...
-                for (int i = 0; i < new_fragments_copy.size(); i++) {
+                for (int i = 0; i < new_fragments.size(); i++) {
                     // set topologyPos to the difference between the current position and next position 
                     // (e.g. remember the distance between the fragment N-terminal positions)
                     if (i == new_fragments.size()-1) new_fragments[i]->topologyPosition = overlap - new_fragments[i]->getResidueSize();
-                    new_fragments[i]->topologyPosition = new_fragments[i]->topologyPosition - new_fragments[i+1]->topologyPosition;
+                    else new_fragments[i]->topologyPosition = new_fragments[i]->topologyPosition - new_fragments[i+1]->topologyPosition;
                 }
                 int topologyPosAdjust = currentLength - overlap;
-                for (auto it = new_fragments_copy.rbegin(); it != new_fragments_copy.rend(); it++) {
+                for (auto it = new_fragments.rbegin(); it != new_fragments.rend(); it++) {
                     shared_ptr<topologyElement> newtE = *it;
-                    checkIfFragmentIsValidExtension(newtE->topologyPosition,newtE->getResidueSize());
+                    checkIfFragmentIsValidExtension(newtE->topologyPosition,newtE->getResidueSize(),newtE->name);
                     for (shared_ptr<topologyElement> tE : fragments) tE->topologyPosition = tE->topologyPosition - newtE->topologyPosition;
                     fragments.push_back(newtE);
                     updateCurrentLength();
@@ -362,7 +360,7 @@ class fragmentTopology {
                 shared_ptr<topologyElement> tE = make_shared<topologyElement>(s,topologyPos,nterm_trim,cterm_trim,isSeed);
                 fragments.push_back(tE);
             } else {
-                checkIfFragmentIsValidExtension(topologyPos,s->residueSize()-cterm_trim-nterm_trim);
+                checkIfFragmentIsValidExtension(topologyPos,s->residueSize()-cterm_trim-nterm_trim,s->getName());
                 if (topologyPos < 0) {
                     // N-term addition: need to shift the positions of fragments already in the topology
                     int topology_shift = -topologyPos;
@@ -417,17 +415,17 @@ class fragmentTopology {
             return fragments;
         }
 
-        bool checkIfFragmentIsValidExtension(int topologyPos, int resLength) {
+        bool checkIfFragmentIsValidExtension(int topologyPos, int resLength, string fragment_name) {
             // To be valid, must have at least minOverlap, but also must extend topology by at least one residue
             if (topologyPos < 0) {
                 // N-term extension
-                if (topologyPos + resLength < minOverlap) MstUtils::error("topology position "+MstUtils::toString(topologyPos)+" for fragment with "+MstUtils::toString(resLength)+" residues does not have sufficient overlap","fragmentTopology::checkIfFragmentIsValidExtension");
+                if (topologyPos + resLength < minOverlap) MstUtils::error("topology position "+MstUtils::toString(topologyPos)+" for fragment "+fragment_name+" with "+MstUtils::toString(resLength)+" residues does not have sufficient overlap","fragmentTopology::checkIfFragmentIsValidExtension");
             } else {
                 // C-term extension
                 // has minOverlap?
-                if (currentLength - topologyPos < minOverlap) MstUtils::error("topology position "+MstUtils::toString(topologyPos)+" in topology with "+MstUtils::toString(currentLength)+" residues has insufficient overlap","fragmentTopology::checkIfFragmentIsValidExtension");
+                if (currentLength - topologyPos < minOverlap) MstUtils::error("topology position "+MstUtils::toString(topologyPos)+" for fragment "+fragment_name+" in topology with "+MstUtils::toString(currentLength)+" residues has insufficient overlap","fragmentTopology::checkIfFragmentIsValidExtension");
                 // extended by at least one residue?
-                if (resLength - (currentLength - topologyPos) <= 0) MstUtils::error("topology position "+MstUtils::toString(topologyPos)+" for fragment with "+MstUtils::toString(resLength)+" residues in topology with "+MstUtils::toString(currentLength)+" residues does not increase the length of the topology","fragmentTopology::checkIfFragmentIsValidExtension");
+                if (resLength - (currentLength - topologyPos) <= 0) MstUtils::error("topology position "+MstUtils::toString(topologyPos)+" for fragment "+fragment_name+" with "+MstUtils::toString(resLength)+" residues in topology with "+MstUtils::toString(currentLength)+" residues does not increase the length of the topology","fragmentTopology::checkIfFragmentIsValidExtension");
             }
             return true;
         }
@@ -438,12 +436,6 @@ class fragmentTopology {
             }
         }
 
-    protected:
-        void updateCurrentLength() {
-            sortTopology(fragments);
-            currentLength = fragments.back()->topologyPosition + fragments.back()->getResidueSize();
-        }
-
         void sortTopology(vector<shared_ptr<topologyElement>>& _fragments) {
             std:sort(_fragments.begin(),_fragments.end(),
                 [](const shared_ptr<topologyElement>& lhs, const shared_ptr<topologyElement>& rhs) 
@@ -451,6 +443,20 @@ class fragmentTopology {
                     return *(lhs.get()) < *(rhs.get());
                 });
         }
+
+    protected:
+        void updateCurrentLength() {
+            sortTopology(fragments);
+            currentLength = fragments.back()->topologyPosition + fragments.back()->getResidueSize();
+        }
+
+        // void sortTopology(vector<shared_ptr<topologyElement>>& _fragments) {
+        //     std:sort(_fragments.begin(),_fragments.end(),
+        //         [](const shared_ptr<topologyElement>& lhs, const shared_ptr<topologyElement>& rhs) 
+        //         {
+        //             return *(lhs.get()) < *(rhs.get());
+        //         });
+        // }
 
     private:
         vector<shared_ptr<topologyElement>> fragments;
@@ -503,7 +509,7 @@ class topologyDB {
             return false;
         }
 
-        shared_ptr<fragmentTopology> getTopologyFromDB(string topologyName, multiPDBFile& fragmentDB) {
+        shared_ptr<fragmentTopology> getTopologyFromDB(string topologyName, multiPDBFile& fragmentDB, shared_ptr<Structure> fusedBackbone = nullptr) {
             if (data.find(topologyName) == data.end()) MstUtils::error("topology not in DB","topologyDB::getTopologyFromDB");
             shared_ptr<fragmentTopology> fT = make_shared<fragmentTopology>();
             vector<shared_ptr<topologyElement>> fragments;
@@ -515,6 +521,11 @@ class topologyDB {
                 string aaSeq = it.value()["aaSeq"];
                 bool isSeed = it.value()["isSeed"];
                 shared_ptr<topologyElement> tE = make_shared<topologyElement>(fragmentDB,it.key(),topologyPosition,nterm_trim,cterm_trim,isSeed);
+                
+                // If a fused backbone was provided, align the fragments to the fused backbone in case they are not already
+                // Assume a correspondence between the fused backbone and the fragments
+                if (fusedBackbone!=nullptr) alignFragmentToFused(tE,fusedBackbone);
+
                 // tE->reportElement();
                 fragments.push_back(tE);
             }
@@ -522,9 +533,21 @@ class topologyDB {
             fT->addMultipleTopologyElements(fragments);
             return fT;
         }
+    
+    protected:
+        void alignFragmentToFused(shared_ptr<topologyElement> topologyElement, shared_ptr<Structure> fused) {
+            vector<Atom*> fragment_bb_atoms = MiscTools::getBackboneAtoms(topologyElement->getResidues());
+            vector<Residue*> fused_residues;
+            for (int resIdx : topologyElement->getTopologyPositions()) {
+                fused_residues.push_back(&fused->getResidue(resIdx));
+            }
+            vector<Atom*> fused_bb_atoms = MiscTools::getBackboneAtoms(fused_residues);
+            calc.align(fragment_bb_atoms,fused_bb_atoms,fragment_bb_atoms);
+        }
 
     private:
         json data;
+        RMSDCalculator calc;
 };
 
 class fuseSeedsAndBridge {

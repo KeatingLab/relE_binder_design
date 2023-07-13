@@ -15,7 +15,7 @@ int main (int argc, char *argv[]) {
     string prefix = op.getString("prefix","");
     int maxLength = op.getInt("maxLength",12);
 
-    seedBridgeDB bridgeData;
+    seedBridgeDB bridgeData(maxLength);
     bridgeData.loadProteinStructures(structureDBPath);
     bridgeData.buildDBfromStructures(maxLength);
     bridgeData.writeDBtoFile(prefix+".bridge.bin");
