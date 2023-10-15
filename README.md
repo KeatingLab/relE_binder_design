@@ -6,7 +6,19 @@ A suite of C++ programs for *de novo* design of protein-binding peptides or mini
 
 ## Installation
 
-### Dependencies
+### Python Programs
+
+#### Environments
+
+Using conda or [mamba](https://github.com/mamba-org/mamba), set up the environment for [TERMinator_sscore](https://github.com/swanss/TERMinator_sscore), following the directions in the README.md
+
+#### Running Programs
+
+See examples in `peptide_binder_design/examples/python_programs`
+
+### C++ Programs
+
+#### Dependencies
 
 Before building `interfaceGenerator` programs, you must download the following dependencies
 
@@ -26,7 +38,7 @@ SASADIR = ../freesasa-2.0.3
 JSONDIR = ../json
 ```
 
-### Building the programs
+#### Building the programs
 
 The following compilers have been used to build these programs.
 

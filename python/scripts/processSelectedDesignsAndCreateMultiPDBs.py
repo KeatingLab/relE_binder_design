@@ -66,9 +66,9 @@ def main():
     }
 
     # NOTE: renaming the structures as pipeline_rank (the full names are garbled by the PyMol loader)
-    name_remap = {row['name']:f"{row['pipeline']}_{row['rank']}"for _,row in final_df.iterrows()}
-    relax_name_remap = {f"{row['name']}_0001":f"{row['pipeline']}_{row['rank']}"for _,row in final_df.iterrows()}
-    alphafold_relax_name_remap = {f"{row['name']}_0001_af2pred":f"{row['pipeline']}_{row['rank']}"for _,row in final_df.iterrows()}
+    name_remap = {row['name']:f"{row['pipeline']}_{int(row['rank'])}"for _,row in final_df.iterrows()}
+    relax_name_remap = {f"{row['name']}_0001":f"{row['pipeline']}_{int(row['rank'])}"for _,row in final_df.iterrows()}
+    alphafold_relax_name_remap = {f"{row['name']}_0001_af2pred":f"{row['pipeline']}_{int(row['rank'])}"for _,row in final_df.iterrows()}
 
     full_dir = "topranked100"
     pathlib.Path(full_dir).mkdir(exist_ok=True)
