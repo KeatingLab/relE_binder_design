@@ -1,4 +1,4 @@
-# interfaceGenerator
+# RelE peptide binder design scripts
 
 A suite of C++ programs for *de novo* design of protein-binding peptides or mini-proteins. 
 
