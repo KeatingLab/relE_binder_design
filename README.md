@@ -1,6 +1,6 @@
 # RelE peptide binder design scripts
 
-A suite of C++ programs for *de novo* design of protein-binding peptides or mini-proteins. 
+This repository contains all of the code used to design extensions of RelB peptide. The majority of the scripts are written in C++, but the scoring and sequence design scripts are written in python. The examples directory shows how the different steps of design can be run.
 
 ---
 
@@ -10,7 +10,23 @@ A suite of C++ programs for *de novo* design of protein-binding peptides or mini
 
 #### Environments
 
-Using conda or [mamba](https://github.com/mamba-org/mamba), set up the environment for [TERMinator_sscore](https://github.com/swanss/TERMinator_sscore), following the directions in the README.md
+Most of the dependency management is handled with [Poetry](https://python-poetry.org/). To isolate the environment and control the python version, we have used [miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main). Note that this environment was created and tested on linux (not on mac)
+
+First create and activate your conda enviroment with python 3.9
+```bash
+conda create env --name rele_binder_design python==3.9 -y && conda activate rele_binder_design
+```
+
+Next install the dependencies using poetry. 
+```bash
+cd $REPO
+poetry install # installs the exact environment as defined by the poetry.lock file
+
+# it is easier to install the torch-geometric dependencies directly with pip
+poetry run pip install \
+  --find-links https://data.pyg.org/whl/torch-2.4.0%2Bcu124.html \
+  torch-scatter torch-sparse torch-cluster pyg-lib
+```
 
 #### Running Programs
 
