@@ -390,7 +390,6 @@ class PairEnergies(nn.Module):
             raise ValueError(f"sscore_from_embedding: {self.hparams['sscore_from_embedding']} not recognized")
 
         # project to output and merge duplicate pairEs
-
         h_E = self.W_out(h_E)
         n_batch, n_res, k, out_dim = h_E.shape
         h_E = h_E * x_mask.view(n_batch, n_res, 1, 1) # ensure output etab is masked properly
@@ -404,6 +403,5 @@ class PairEnergies(nn.Module):
             h_E[..., 0, :, :] = torch.diag_embed(h_V, dim1=-2, dim2=-1)
 
         # reshape to fit kNN output format
-        print(h_E.is_tensor())
         h_E = h_E.view(n_batch, n_res, k, out_dim)
         return h_E, E_idx, sscore

@@ -1,0 +1,39 @@
+[project]
+name = "rele-binder-design"
+version = "0.1.0"
+description = "Scripts for fragment-based extension of peptide binders"
+authors = [
+    {name = "Sebastian Swanson"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy (>=1.22.4,<1.23.0)",
+    "scipy (>=1.7.3,<2.0.0)",
+    "pandas (>=1.4.3,<2.0.0)",
+    "tensorboard (>=2.9.0,<3.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
+    "seaborn (>=0.11.2,<0.12.0)",
+    "torch (==1.10.1)",
+    "torch-cluster (==1.6.0)",
+    "torch-scatter (==2.0.9)",
+    "torch-sparse (==0.6.13)",
+    "torch-geometric (==2.0.4)",
+]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+torch = {source = "pytorch-cpu"}
+torch-cluster = {url = "https://data.pyg.org/whl/torch-1.10.0%2Bcpu/torch_cluster-1.6.0-cp39-cp39-linux_x86_64.whl"}
+torch-scatter = {url = "https://data.pyg.org/whl/torch-1.10.0%2Bcpu/torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl"}
+torch-sparse = {url = "https://data.pyg.org/whl/torch-1.10.0%2Bcpu/torch_sparse-0.6.13-cp39-cp39-linux_x86_64.whl"}

@@ -13,10 +13,11 @@ export PYTHONPATH=$PYTHONPATH:/orcd/home/002/swans/relE_paper/relE_binder_design
 
 CUDA_LAUNCH_BLOCKING=1
 
-dataset=/orcd/home/002/swans/relE_paper/relE_binder_design/examples/python_programs/scoreComplexes/4FXE-ARG81-relax-noHyd_E_B_sampledSeeds.pdb
+dataset=/orcd/home/002/swans/relE_paper/relE_binder_design/examples/python_programs/scoreComplexes/7_connectFragments_relBhelix-2seeds_memfixed_topologyfixed_fusedDB.pdb
 target_pdb=/orcd/home/002/swans/relE_paper/relE_binder_design/examples/python_programs/scoreComplexes/4FXE-ARG81-relax-noHyd_E_.pdb
 TERMrepo=/orcd/home/002/swans/relE_paper/relE_binder_design/
-model=/orcd/pool/008/swans/terminator_stuff/priority/230310_finetuneCOORDinator_sscore_mpnodeupdate
+model=/orcd/pool/008/swans/terminator_stuff/priority/230308_retrainCOORDinator_filtTrainData_etabnormpenalty_2
+# model=/orcd/pool/008/swans/terminator_stuff/priority/230310_finetuneCOORDinator_sscore_mpnodeupdate
 seqMode="consensus_aa"
 scoreMode="interface_only"
 custom_pep_reference=/orcd/pool/008/swans/proteome_amino_acid_distribution/iupred_humanproteome0.7cutoff_aaprob.pkl

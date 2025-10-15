@@ -221,6 +221,11 @@ def dumpTrainingTensors(in_path, out_path=None, cutoff=1000, save=True, coords_o
         with open(out_path + '.length', 'w') as fp:
             fp.write(str(len(term_focuses)) + '\n')
             fp.write(str(len(data['selection'])))
+
+    if pdb:
+        print('Done with', pdb)
+    else:
+        print('Done packing tensor')
     return output
 
 
@@ -287,6 +292,10 @@ def dumpCoordsTensors(in_path, out_path=None, save=True, valid_pdb_lines=None):
             fp.write(str(1) + '\n')
             fp.write(str(len(seq)))
 
+    if pdb:
+        print('Done with', pdb)
+    else:
+        print('Done packing tensor')
     return output
 
 def concatFeatureDicts(feat_A,feat_B):

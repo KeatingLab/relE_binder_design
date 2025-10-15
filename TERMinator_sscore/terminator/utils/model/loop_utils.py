@@ -25,8 +25,8 @@ def _to_dev(data_dict, dev):
     for key, value in data_dict.items():
         if isinstance(value, torch.Tensor):
             data_dict[key] = value.to(dev)
-        # if key == 'gvp_data':
-        #     data_dict['gvp_data'] = [data.to(dev) for data in data_dict['gvp_data']]
+        if key == 'gvp_data':
+            data_dict['gvp_data'] = [data.to(dev) for data in data_dict['gvp_data']]
 
 
 def _ld_item_values(ld):
@@ -232,7 +232,7 @@ def run_epoch(model, dataloader, loss_fn, optimizer=None, scheduler=None, grad=F
     progress = tqdm(total=len(dataloader))
     for data in dataloader:
         # a small hack for DataParallel to know which device got which proteins
-        data['scatter_idx'] = torch.arange(len(data['seq_lens']),device=dev)
+        data['scatter_idx'] = torch.arange(len(data['seq_lens']))
         _to_dev(data, dev)
         max_seq_len = max(data['seq_lens'].tolist())
         ids = data['ids']

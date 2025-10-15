@@ -2,52 +2,11 @@
 
 This fork extends TERMinator by adding an additional output: the structure score (abbreviated as sscore).
 
-Install the conda environment with following command: `conda env create -f TERMinator_sscore.yml`
-
-The weights for the model can be found on supercloud in the following directory `/data1/groups/keatinglab/swans/TERMinator/230310_finetuneCOORDinator_sscore_mpnodeupdate/`
-
 # TERMinator
 This repo contains code for [Neural Network-Derived Potts Models for Structure-Based Protein Design using Backbone Atomic Coordinates and Tertiary Motifs](https://www.biorxiv.org/content/10.1101/2022.08.02.501736v1) by Alex J. Li, Mindren Lu, Israel Desta, Vikram Sundar, Gevorg Grigoryan, and Amy E. Keating.
 
 The following instructions assume you are running on SuperCloud, one of MIT's HPCC systems.
 These SLURM scripts are included in the repo, and can be adapted to other HPCC systems if necessary.
-
-
-## Documentation
-As of now, we don't have the docs hosted anywhere, but they're pretty nice! You can build the docs and view them locally following the instructions in the `docs` folder. The "Getting Started" guide is also given below.
-
-
-## Requirements
-* python3
-* pytorch = 1.10.1
-* pandas
-* numpy
-* scipy
-* tqdm
-* matplotlib
-* seaborn
-* pylint
-* pytest-pylint
-* yapf
-* pyg
-
-Above should be all that's needed, and an `env.yaml` is included that specifies these.
-
-
-## Setup
-The following instructions assume you are running on SuperCloud, one of MIT's HPCC.
-These SLURM scripts are included in the repo, and can be adapted to other HPCC systems if necessary.
-Additionally, for all scripts, assume that absolute file paths should be provided, as not all scripts have been
-tested to work with relative paths.
-
-Setup the proper conda environment using the `env.yaml` file (e.g. `conda env create -f env.yaml`).
-This will create a conda env called `terminator`, which can be activated using `conda activate terminator`.
-
-Next, run `pip install -e .` in the root directory, which will install the TERMinator software suite in sandbox mode as an importable module `terminator` in the environment.
-
-Additionally, you'll need to modify `scripts/config.sh` specifying the path to your MST installation (e.g. `~/MST_workspace/MST`). See [Mosaist](https://github.com/Grigoryanlab/Mosaist) for the latest updates.
-This is necessary for using `MST/bin/design`.
-
 
 ## TERMinator Feature Generation
 First, you'll need a folder that of dTERMen runs e.g. a folder of structure `<dataset>/<pdb_id>/<pdb_id>.<ext>`,

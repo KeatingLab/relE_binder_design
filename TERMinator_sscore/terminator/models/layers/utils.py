@@ -430,9 +430,9 @@ def merge_duplicate_edges_geometric(h_E_update, edge_index):
     num_nodes = edge_index.max() + 1
     row_idx = edge_index[0] + edge_index[1] * num_nodes
     col_idx = edge_index[1] + edge_index[0] * num_nodes
-    internal_idx = torch.arange(edge_index.shape[1],device=h_E_update.device)
+    internal_idx = torch.arange(edge_index.shape[1])
 
-    mapping = torch.zeros(max(row_idx.max(), col_idx.max()) + 1,device=h_E_update.device).long() - 1
+    mapping = torch.zeros(max(row_idx.max(), col_idx.max()) + 1).long() - 1
     mapping[col_idx] = internal_idx
 
     reverse_idx = mapping[row_idx]
@@ -506,26 +506,26 @@ def merge_duplicate_pairE(h_E, E_idx, halve_pair_E=False):
         Shape : n_batch x n_res x k x n_aa x n_aa
     """
     _,_,k = E_idx.shape
-    # try:
-    seq_lens = torch.ones(h_E.shape[0],device=h_E.device).long() * h_E.shape[1]
-    h_E_geometric = h_E.view([-1, 400])
-    split_E_idxs = torch.unbind(E_idx)
-    offset = [seq_lens[:i].sum() for i in range(len(seq_lens))]
-    split_E_idxs = [e.to(h_E.device) + o for e, o in zip(split_E_idxs, offset)]
-    edge_index_row = torch.cat([e.view(-1) for e in split_E_idxs], dim=0)
-    edge_index_col = torch.repeat_interleave(torch.arange(edge_index_row.shape[0] // k).to(h_E.device), k)
-    edge_index = torch.stack([edge_index_row, edge_index_col])
-    merge = merge_duplicate_pairE_geometric(h_E_geometric, edge_index, halve_pair_E)
-    merge = merge.view(h_E.shape)
+    try:
+        seq_lens = torch.ones(h_E.shape[0]).long().to(h_E.device) * h_E.shape[1]
+        h_E_geometric = h_E.view([-1, 400])
+        split_E_idxs = torch.unbind(E_idx)
+        offset = [seq_lens[:i].sum() for i in range(len(seq_lens))]
+        split_E_idxs = [e.to(h_E.device) + o for e, o in zip(split_E_idxs, offset)]
+        edge_index_row = torch.cat([e.view(-1) for e in split_E_idxs], dim=0)
+        edge_index_col = torch.repeat_interleave(torch.arange(edge_index_row.shape[0] // k), k).to(h_E.device)
+        edge_index = torch.stack([edge_index_row, edge_index_col])
+        merge = merge_duplicate_pairE_geometric(h_E_geometric, edge_index, halve_pair_E)
+        merge = merge.view(h_E.shape)
         #old_merge = merge_duplicate_pairE_dense(h_E, E_idx)
         #assert (old_merge == merge).all(), (old_merge, merge)
 
-        # return merge
-    # except RuntimeError as err:
-    #     print(err, file=sys.stderr)
-    #     print("We're handling this error as if it's an out-of-memory error", file=sys.stderr)
-    #     torch.cuda.empty_cache()  # this is probably unnecessary but just in case
-    #     return merge_duplicate_pairE_sparse(h_E, E_idx)
+        return merge
+    except RuntimeError as err:
+        print(err, file=sys.stderr)
+        print("We're handling this error as if it's an out-of-memory error", file=sys.stderr)
+        torch.cuda.empty_cache()  # this is probably unnecessary but just in case
+        return merge_duplicate_pairE_sparse(h_E, E_idx)
 
 
 def merge_duplicate_pairE_dense(h_E, E_idx):
@@ -674,9 +674,9 @@ def merge_duplicate_pairE_geometric(h_E, edge_index, halve_pair_E=False):
     num_nodes = edge_index.max() + 1
     row_idx = edge_index[0] + edge_index[1] * num_nodes
     col_idx = edge_index[1] + edge_index[0] * num_nodes
-    internal_idx = torch.arange(edge_index.shape[1],device=h_E.device)
+    internal_idx = torch.arange(edge_index.shape[1])
 
-    mapping = torch.zeros(max(row_idx.max(), col_idx.max()) + 1, device=h_E.device).long() - 1
+    mapping = torch.zeros(max(row_idx.max(), col_idx.max()) + 1).long() - 1
     mapping[col_idx] = internal_idx
 
     reverse_idx = mapping[row_idx]

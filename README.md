@@ -10,7 +10,7 @@ This repository contains all of the code used to design extensions of RelB pepti
 
 #### Environments
 
-Most of the dependency management is handled with [Poetry](https://python-poetry.org/). To isolate the environment and control the python version, we have used [miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main). Note that this environment was created and tested on linux (not on mac)
+Most of the dependency management is handled with [Poetry](https://python-poetry.org/). To isolate the environment and control the python version, we have used [miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main). Note that this environment was created and tested on linux (not on mac).
 
 First create and activate your conda enviroment with python 3.9
 ```bash
@@ -21,35 +21,27 @@ Next install the dependencies using poetry.
 ```bash
 cd $REPO
 poetry install # installs the exact environment as defined by the poetry.lock file
-
-# it is easier to install the torch-geometric dependencies directly with pip
-poetry run pip install \
-  --find-links https://data.pyg.org/whl/torch-2.4.0%2Bcu124.html \
-  torch-scatter torch-sparse torch-cluster pyg-lib
 ```
 
-#### Running Programs
-
-See examples in `peptide_binder_design/examples/python_programs`
+Note that this environment contains CPU-only pytorch. A legacy conda environment yaml `rele_binder_design.yml` with GPU-enabled torch is also provided, but may be difficult to install on newer GPUs as the pytorch/pytorch geometric versions are old.
 
 ### C++ Programs
 
 #### Dependencies
 
-Before building `interfaceGenerator` programs, you must download the following dependencies
+All C++ specific source code can be found in `/fragment_tools_cpp`. Before building these programs, first set up the following dependencies
+- "Mosaist" or [MST](https://github.com/swanss/Mosaist), a library for working with protein structures and sequences.
 
-- "Mosaist" or [MST](https://github.com/Grigoryanlab/Mosaist), a library for working with protein structures and sequences.
-
-- [FreeSASA](https://github.com/mittinatten/freesasa), for calculating the solvent accessible surface area of biomolecules. Configure with the following command `./configure --disable-json --disable-xml --disable-threads`. 
+- [FreeSASA](https://github.com/mittinatten/freesasa/releases/tag/2.0.3), for calculating the solvent accessible surface area of biomolecules. Configure with the following command `./configure --disable-json --disable-xml --disable-threads`. 
 
 - [JSON](https://github.com/nlohmann/json), for working with JSON formatted files.
 
-You will need to build MST according to the instructions provided with the repo. FreeSASA and JSON do not need to be compiled separately.
+You will need to build Mosaist and FreeSASA according to the instructions provided with the repo. JSON does not need to be compiled.
 
-Edit the `makefile` to provide the paths to their respective installation directories. For example, if each of these has been cloned/installed in the same parent directory containing interfaceGenerator, then the DIR variables would be set as follows:
+Edit the `makefile` to provide the paths to the respective installation directories. For example, if each of these has been cloned/installed in the same parent directory containing `/rele_binder_design`, then the DIR variables would be set as follows:
 
 ```makefile
-MSTDIR = ../MST
+MSTDIR = ../Mosaist
 SASADIR = ../freesasa-2.0.3
 JSONDIR = ../json
 ```
@@ -71,15 +63,5 @@ Use the following commands to build
 
 ---
 
-## Main programs
-
-### `generateSeeds`
-
-Generate short segments of protein backbone, i.e. 'interface seeds', around the target protein.
-
-### `scoreBinder`
-
-Scores one, or many, binding structures relative to a target protein. The score is computed per interface contact and is equal to the log of the probability of the binder residue, given the target residue.
-
-# Known bugs to fix
+# Known bugs
 - FreeSASA currently crashes when presented with structures containing hydrogens (e.g. rosetta models)
