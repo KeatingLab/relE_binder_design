@@ -1,9 +1,0 @@
-# parameters
-melting low 75 # default
-length low 180 # default
-codon ecoli2
-
-# AA sequence to convert to DNA
-protein
-QTLLSDEDAELVEIVKERLAKYKEYPILGPEGAKKL
-//
