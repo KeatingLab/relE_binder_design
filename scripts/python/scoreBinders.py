@@ -1,24 +1,3 @@
-"""Score de-novo designed protein-binding peptide backbones using TERMinator energy tables
-
-# The resulting evaluated proteins will be dumped in :code:`<output_dir>` via
-# a pickle file :code:`net.out`.
-
-Usage:
-    .. code-block::
-
-        python scoreBinders.py \\
-            # --dataset <dataset_dir> \\
-            # --model_dir <trained_model_dir> \\
-            # --output_dir <output_dir> \\
-            # [--subset <data_subset_file>] \\
-            # [--dev <device>]
-
-    If :code:`subset` is not provided, the entire dataset :code:`dataset` will
-    be evaluated.
-
-See :code:`python scoreBinders.py --help` for more info.
-"""
-
 import argparse
 import json
 from multiprocessing.sharedctypes import Value
@@ -29,7 +8,6 @@ import sys
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 
 from scripts.data.preprocessing.cleanStructs import extractBackbone
 from terminator.data.data import BinderScoringIterableDataset,ComplexScoringDataset
@@ -40,8 +18,6 @@ from terminator.utils.common import int_to_3lt_AA,AA_to_int,int_to_AA
 from terminator.utils.model.default_hparams import DEFAULT_MODEL_HPARAMS, DEFAULT_TRAIN_HPARAMS
 
 from src.rele_binder_design.score_utils import interfaceScorer,get_binder_names
-
-# pylint: disable=unspecified-encoding
 
 def load_hparams(model_path, default_hparams, output_name):
     print("loading params")
@@ -90,10 +66,8 @@ if __name__ == '__main__':
 
     # If a simple peptide reference state is being used, no need to load binder structures separately
     load_mode = "complex_only" if args.custom_pep_reference != '' else "binder_and_complex"
-    # load_mode = 'binder_and_complex'
     print(f"Will attempt to load {n_binders} total structures from the binder dataset in {load_mode} mode")
     if (args.binder_dataset):
-        # dataset = BinderScoringIterableDataset(args.binder_dataset,args.target_pdb)
         dataset = BinderScoringIterableDataset(filename=args.binder_dataset,target_pdb_path=args.target_pdb,max_res_num=27500,binder_subset=binder_subset,mode=load_mode,skip_package=False)
         dataset_iter = iter(dataset)
     elif (args.complex_dataset):
@@ -101,7 +75,6 @@ if __name__ == '__main__':
         dataset_iter = iter(dataset)
     else:
         raise ValueError("Must provide either --binder_dataset or --complex_dataset")
-    # dataloader = DataLoader(dataset,batch_size=1)
 
     # Load the model configuration parameters
     model_hparams = load_hparams(args.model_dir, DEFAULT_MODEL_HPARAMS, 'model_hparams.json')
@@ -204,8 +177,6 @@ if __name__ == '__main__':
                 scorer.set_new_binder_and_complex(packaged_binder_complex_data)
             if binderSubsetNames is not None and scorer.get_pdb_name() not in binderSubsetNames:
                 continue
-            # else:
-            #     print(f"scoring binder {scorer.get_pdb_name(idx)}")
             scorer.get_binder_scores(args.seq_mode,args.score_mode)
             scorer.write_structure_scores(args.score_mode)
             scorer.write_residue_scores(args.score_mode)
