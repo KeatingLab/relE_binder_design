@@ -24,8 +24,7 @@ from terminator.utils.model.default_hparams import DEFAULT_MODEL_HPARAMS, DEFAUL
 
 from scripts.design_sequence.mcmc_utilities import simulatedAnnealingMCMC, mcmcParams, residueGroup
 
-# from python.score_binders.hbond_utils import bbHBond
-from python.score_binders.score_utils import *
+from src.rele_binder_design.score_utils import *
 
 # pylint: disable=unspecified-encoding
 
@@ -64,33 +63,6 @@ def main_array(args, binder_list):
     binder_subset = binder_list[batch_start:batch_end]
     print(f"binder subset has {len(binder_subset)} members: {binder_subset}")
     main(args,binder_subset,args.batch_index)
-
-# def get_seq_const_from_name(native_seq,target_chain_len,bridge_name):
-#     # if this is an extension of a native fragment, constrain that region's sequence 
-#     # note: this function assumes the region of the native peptide that is to be maintained is at the n-terminus
-#     native_first_match = re.search("4FXE-ARG81-relax-noHyd-(\d+)-(\d+)__B_(\d)_(\d)_(\d)_",bridge_name)
-#     native_second_match = re.search("_(\d)_(\d)_(\d)_4FXE-ARG81-relax-noHyd-(\d+)-(\d+)__B",bridge_name)
-#     native_target_seq = native_seq[:target_chain_len]
-#     if native_first_match:
-#         # c-terminal extension
-#         native_peptide_fragment_len = (int(native_first_match[2]) - int(native_first_match[1]) + 1 - int(native_first_match[3])) # final residue number, first residue number, and amount that was resected from native seed
-#         return residueGroup('A',set([str(x) for x in range(native_peptide_fragment_len+1,native_peptide_fragment_len+50)])) # 50 is arbitrary, just has to be longer than the actual number of residues
-
-#     elif native_second_match:
-#         # nterminal extension
-#         native_peptide_fragment_len = (int(native_second_match[5]) - int(native_second_match[4]) + 1 - int(native_second_match[3])) # final residue number, first residue number, and amount that was resected from native seed
-#         native_peptide_fragment_len = native_peptide_fragment_len - 3 # hacky fix, the wrong sequence was copied at the first three residues
-#         native_peptide_fragment_seq = native_seq[-native_peptide_fragment_len:]
-#         extension_length = len(native_seq) - len(native_peptide_fragment_seq) - target_chain_len
-#         return residueGroup('A',set([str(x) for x in range(1,extension_length)]))
-#     else:
-#         return None
-    
-# def get_seq_const_from_name(native_seq,target_chain_len,bridge_name):
-#     # special case: all selected designs have 9 residues of lc3b peptide
-#     peptide_length = len(native_seq) - target_chain_len
-#     return residueGroup('A',set([str(x) for x in range(peptide_length-9+1,peptide_length+1)]))
-
 
 def get_seq_const_from_name(native_seq,target_chain_len,bridge_name,fixedSeedName):
     # find the fixed seed + its length in the bridge name and then select the VARIABLE residues
@@ -363,11 +335,13 @@ def main(args, binder_subset, process_number):
                 print('constraint sequence: ',target_constraint_seq)
                 
                 if args.fixed_fragment_name != "":
+                    print("select fixed fragment")
                     fused_peptide_sequence = native_seq[target_chain_len:]
                     selRes,new_fused_peptide_sequence = get_seq_const_from_name(args.fixed_fragment_name,topology_db,bridge_name,fused_peptide_sequence)
                     # make sure the fixed region has the correct sequence
                     native_seq = native_seq[:target_chain_len] + new_fused_peptide_sequence
                 else:
+                    print("whole binder selected")
                     selRes = residueGroup(args.binderChainID)
                 
                 opt.loadEnergyTable(net_out['etab'],net_out['E_idx'],net_out['res_info'])
