@@ -88,7 +88,6 @@ class interfaceScorer:
         # run COORDinator to generate etabs
         if self.target_netout == None:
             self.target_netout = self.run_model(self.target_data, self.dev)[0]
-        binder_complex_netout = self.run_model(self.binder_complex_data, self.dev) #alternating netout: 1) binder, 2) complex
         
         if self.custom_pep_ref_aa_probs == None:
             binder_complex_netout = self.run_model(self.binder_complex_data, self.dev)
@@ -220,6 +219,10 @@ class interfaceScorer:
 
         for idx in range(len(self.complex_netout)):
             print(f"scoring {self.get_pdb_name(idx)} in {seq_mode} and {score_mode} mode")
+            # with open(f'net_out_{idx}_{self.get_pdb_name(idx)}_target.pkl', 'wb') as file:
+            #     pickle.dump(self.target_netout, file)
+            # with open(f'net_out_{idx}_{self.get_pdb_name(idx)}_complex.pkl', 'wb') as file:
+            #     pickle.dump(self.complex_netout, file)
             
             # get the unbound target amino acid probabilities
             if self.unbound_target_aa_probs == None:

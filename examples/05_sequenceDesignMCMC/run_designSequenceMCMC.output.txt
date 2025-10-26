@@ -1,0 +1,71 @@
+['../../scripts/python/designSequenceMCMC.py', '--complex_dataset', 'relBE.txt', '--binderChainID', 'B', '--targetChainID', 'E', '--model_dir', '/orcd/pool/008/swans/terminator_stuff/priority/230310_finetuneCOORDinator_sscore_mpnodeupdate', '--early_stopping', '-1', '--n', '1', '--n_cyc', '5', '--n_it', '10000', '--Tf', '0.5', '--n_batches', '1', '--batch_index', '0']
+device: cpu
+Will attempt to load 1 total structures from the binder dataset
+1 structures split into 1 batches
+Batch defined as structures: [0,1)
+binder subset has 1 members: ['../files/4FXE-ARG81-relax-noHyd_E_B.pdb']
+loading params
+loading params
+{'cov_features': 'all_raw', 'cov_compress': 'project', 'term_use_mpnn': True, 'matches': 'transformer', 'energies_use_mpnn': True, 'energies_full_graph': True, 'contact_idx': True, 'energies_encoder_layers': 3, 'energies_hidden_dim': 128, 'resnet_linear': True, 'matches_linear': True, 'transformer_linear': True, 'term_mpnn_linear': True, 'use_terms': False, 'res_embed_linear': True, 'sscore_from_embedding': 'node', 'sscore_module': 'aggnode', 'model': 'multichain', 'term_hidden_dim': 32, 'flex_hidden_dim': 1, 'flex_type': '', 'gradient_checkpointing': True, 'num_pair_stats': 28, 'num_sing_stats': 0, 'resnet_blocks': 4, 'term_layers': 4, 'flex_layers': 4, 'term_heads': 4, 'conv_filter': 3, 'matches_layers': 4, 'matches_num_heads': 4, 'k_neighbors': 30, 'k_cutoff': None, 'cie_dropout': 0.1, 'cie_scaling': 500, 'cie_offset': 0, 'transformer_dropout': 0.1, 'energies_protein_features': 'full', 'energies_augment_eps': 0, 'energies_dropout': 0.1, 'energies_output_dim': 400, 'energies_gvp': False, 'energies_geometric': False, 'min_protein_len': 30, 'sscore_module_nhidden': 64, 'struct2seq_linear': False, 'use_flex': False, 'use_coords': True, 'num_features': 9, 'merge_pair_embeddings': True, 'fe_dropout': 0.1, 'fe_max_len': 1000, 'num_ensembles': 1}
+GNN Potts Model Encoder hidden dimensionality is 128
+Design binders of different complexes
+Done packing tensor
+Loaded target only 4FXE-ARG81-relax-noHyd_E_B_target
+Done packing tensor
+Loaded binder only 4FXE-ARG81-relax-noHyd_E_B_binder
+Loaded complex 4FXE-ARG81-relax-noHyd_E_B
+loaded 1 binders, 1 total
+etab:  torch.Size([1, 114, 30, 400])
+E_idx: torch.Size([1, 114, 30])
+id 4FXE-ARG81-relax-noHyd_E_B
+etab torch.Size([114, 30, 20, 20])
+E_idx torch.Size([114, 30])
+seq 114
+res_info 114
+chain_lens 2
+Ran the network in eval mode with 1 structures
+Given energy tables and constraints, design sequences
+AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERQTLLSDEDAELVEIVKERLRNPKPVRVTLDEL
+82
+AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRER
+constraint sequence:  AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+whole binder selected
+self.variable_pos: [ 82  83  84  85  86  87  88  89  90  91  92  93  94  95  96  97  98  99
+ 100 101 102 103 104 105 106 107 108 109 110 111 112 113]
+n_it = 10000
+n_cycles = 5
+Ti = 1.0
+Tf = 0.5
+seed = 42
+complexity_weight = -1.0
+convergence = -1
+Cycle: 0
+Initial sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERPGGLCDGSGPERGAKNMPAWEFTFWDMCQGWA, E = -192.18256224121433, complexity = 2.093941672028881
+Current sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERAEAERREEAQLREVVKEREKNPEPVEVTLELL, E = -290.41202748089563, complexity = 1.6925929305454668
+Best sequence:         AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERSEEEQKLNERLRKEVEEKLKDPSPVEVTLEQL, E = -291.34299765515607, complexity = 1.772079689527669
+repeat count:  0  | early stopping:  -1
+Cycle: 1
+Initial sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERIHTIEHYTFYEWALGNTFKKFWMNFITICVWL, E = -199.93768935767002, complexity = 2.0879360244459253
+Current sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERARREAEKDKVLIEVVRERLKDPAPVEVSLEEL, E = -287.6955448103836, complexity = 1.7902207572590982
+Best sequence:         AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERMLEEEKLDEELIREVEERLKNPQPVEVSIEEL, E = -291.742397173075, complexity = 1.728867937632283
+repeat count:  0  | early stopping:  -1
+Cycle: 2
+Initial sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERVISCYKWAKYHDAPQAVHRAHYYCQHQYRHDL, E = -206.71040791476844, complexity = 2.0074559837555643
+Current sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERNMKQEEADKELREIVKERLKDPSPVSVSLDEL, E = -288.1966122488375, complexity = 1.952653240895587
+Best sequence:         AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERSKEEEERDKILRERVKERMKNPEPVEVTLDEL, E = -290.9904243586934, complexity = 1.813180884921566
+repeat count:  0  | early stopping:  -1
+Cycle: 3
+Initial sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERPLCEFENQLSHCWYQSMGLHQPDRTAFYFTSY, E = -209.24351791769732, complexity = 2.188854546907035
+Current sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKREREKEIEELEKQLIEEVKERLKNPEPVLVSLEEL, E = -293.3183301211102, complexity = 1.612329197400244
+Best sequence:         AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKREREKEIEELEKQLIEEVKERLKNPEPVEVTLEEL, E = -293.7304899672745, complexity = 1.5907351519760586
+repeat count:  0  | early stopping:  -1
+Cycle: 4
+Initial sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERYHVRYMHNFILDCGMSKNIDNPHLMPVQQTRK, E = -216.21955314290244, complexity = 2.2125674911282007
+Current sequence:      AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERGREERELEARLIAEVKERNKNPSPVLVTLEDL, E = -288.66068263945635, complexity = 1.9108743864142277
+Best sequence:         AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKRERGREERELEARLIAEVKERRKNPSPVLVTLEDL, E = -290.2372322640149, complexity = 1.8833520132283472
+repeat count:  0  | early stopping:  -1
+Overall best sequence: AYFLDFDERALKEWRKLGSTVREQLKKKLVEVLESPRIEANKLRGMPDCYKIKLRSSGYRLVYQVIDEKVVVFVISVGKREREKEIEELEKQLIEEVKERLKNPEPVEVTLEEL, E = -293.7304899672745, complexity = 1.5907351519760586
+Elapsed: 2.3470864295959473
+Elapsed time: 3.0254974365234375
+Done!
+Elapsed: 0hrs 0min 7sec
