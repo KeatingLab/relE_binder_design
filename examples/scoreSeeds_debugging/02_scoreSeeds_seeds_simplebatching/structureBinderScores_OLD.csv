@@ -1,0 +1,10 @@
+name,score_mode,N_target_res,N_peptide_res,seqstruct_score,struct_score
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_2608_873_791,interface_only,82,7,-13.090475082397461,9.442235946655273
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_2608_873_794,interface_only,82,7,-7.528970718383789,10.88791561126709
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_21374_141_105,interface_only,82,7,-9.063552856445312,10.534090995788574
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_38_55_30,interface_only,82,7,-4.180385589599609,11.731931686401367
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_38_55_90,interface_only,82,7,-5.532547473907471,2.7188663482666016
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_7629_240_275,interface_only,82,7,-4.6891350746154785,9.50238037109375
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_18459_86_117,interface_only,82,7,-10.134187698364258,9.19222354888916
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_14669_353_342,interface_only,82,7,-6.847750663757324,6.648468971252441
+4FXE-ARG81-relax-noHyd_E_B_target_4FXE-ARG81-relax-noHyd_E_B_E2_3043_101_54,interface_only,82,7,-8.732640266418457,0.7876186370849609

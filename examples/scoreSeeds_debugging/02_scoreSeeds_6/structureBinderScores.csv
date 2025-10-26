@@ -1,0 +1,3 @@
+name,score_mode,N_target_res,N_peptide_res,seqstruct_score,struct_score
+4FXE-ARG81-relax-noHyd_E__seed-4FXE-ARG81-relax-noHyd_E_B_E41_12262_133_404_connector-13667-708-8_seed-4FXE-ARG81-relax-noHyd-48-66__0_connector-9218-393-12_seed-4FXE-ARG81-relax-noHyd_E_B_E5_18353_195_247,interface_only,82,37,-64.98200988769531,-9.63633918762207
+4FXE-ARG81-relax-noHyd_E__seed-4FXE-ARG81-relax-noHyd_E_B_E41_12262_133_404_connector-14590-287-8_seed-4FXE-ARG81-relax-noHyd-48-66__0_connector-9218-393-12_seed-4FXE-ARG81-relax-noHyd_E_B_E5_18353_195_247,interface_only,82,37,-64.07699584960938,-7.446088790893555
