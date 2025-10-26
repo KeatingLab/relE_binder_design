@@ -1,0 +1,205 @@
+../../fragment_tools_cpp/bin/generateSeeds --complexPDB ../files/4FXE-ARG81-relax-noHyd_E_B.pdb --binderChains B --fasstDB /orcd/pool/008/swans/databases/220211_PDB_biounits_2019-01-22/nrBioUnits_190122_23633.db --numMatches 10 --seedFlankRes 3 --saveToPDB --wholeSurface
+Found 64 surface residues with a relative SASA threshold of 0.1
+Load FASSTDB (/orcd/pool/008/swans/databases/220211_PDB_biounits_2019-01-22/nrBioUnits_190122_23633.db) without sidechains
+Done took 82 seconds to load DB
+read mode: 0	append: 0	opening file: 4FXE-ARG81-relax-noHyd_E_B.seeds.bin
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E2
+Took 15 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E3
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E4
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E5
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E6
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E7
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E8
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E9
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E10
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E12
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E13
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E14
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E15
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E16
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E17
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E19
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E20
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E21
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E23
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E24
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E25
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E27
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E28
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E29
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E31
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E32
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E34
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E35
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E36
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E38
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E39
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E40
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E41
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E42
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E43
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E44
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E45
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E46
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E47
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E48
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E49
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E52
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E54
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E56
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E57
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E58
+Took 18 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E59
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E60
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E61
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E63
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E65
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E67
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E68
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E69
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E70
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E71
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E74
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E76
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E77
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E79
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E80
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E81
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E82
+Took 17 seconds to find 10 matches
+Searching fragment: 4FXE-ARG81-relax-noHyd_E_B_E83
+Took 15 seconds to find 10 matches
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E2
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E3
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E4
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E5
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E6
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E7
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E8
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E9
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E10
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E12
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E13
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E14
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E15
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E16
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E17
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E19
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E20
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E21
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E23
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E24
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E25
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E27
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E28
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E29
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E31
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E32
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E34
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E35
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E36
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E38
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E39
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E40
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E41
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E42
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E43
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E44
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E45
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E46
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E47
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E48
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E49
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E52
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E54
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E56
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E57
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E58
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E59
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E60
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E61
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E63
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E65
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E67
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E68
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E69
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E70
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E71
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E74
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E76
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E77
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E79
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E80
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E81
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E82
+Generate seeds from fragment: 4FXE-ARG81-relax-noHyd_E_B_E83
+read mode: 1	append: 0	opening file: 4FXE-ARG81-relax-noHyd_E_B.seeds.bin
+Found 1 binder chains
+read mode: 1	append: 0	opening file: 4FXE-ARG81-relax-noHyd_E_B.seeds.bin
+Scanning file positions...
+Done scanning file, took 0.001 sec
+sample rate: 1
+Done
+Elapsed: 0hrs 20min 30sec

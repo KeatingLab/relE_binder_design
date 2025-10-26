@@ -1,0 +1,6 @@
+multipdb 
+multipdbA ../files/4FXE-ARG81-relax-noHyd-48-66__0.pdb
+multipdbB ../01_generateSeeds/4FXE-ARG81-relax-noHyd_E_B.seeds.pdb
+structuredb /orcd/pool/008/swans/databases/singlechain_190122_22188.db
+bridgedb/orcd/pool/008/swans/databases/singleChainDB_max8res/job/singlechain_190122_22188.bridge.bin
+nworkers 1
