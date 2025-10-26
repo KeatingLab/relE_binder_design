@@ -1,9 +1,9 @@
 :/orcd/home/002/swans/relE_paper/relE_binder_design/:/orcd/home/002/swans/relE_paper/relE_binder_design/TERMinator_sscore
-['/orcd/home/002/swans/relE_paper/relE_binder_design//scripts/python/scoreBinders.py', '--complex_dataset', '2KC8_list.txt', '--target_chain_id', 'A', '--binder_chain_id', 'B', '--model_dir', '/orcd/pool/008/swans/terminator_stuff/priority/230308_retrainCOORDinator_filtTrainData_etabnormpenalty_2', '--seq_mode', 'consensus_aa', '--score_mode', 'interface_only', '--custom_pep_reference', '/orcd/pool/008/swans/proteome_amino_acid_distribution/iupred_humanproteome0.7cutoff_aaprob.pkl']
+['/orcd/home/002/swans/relE_paper/relE_binder_design//scripts/python/scoreBinders.py', '--complex_dataset', '2KC8_list.txt', '--target_chain_id', 'A', '--binder_chain_id', 'B', '--model_dir', '../../TERMinator_model/230310_finetuneCOORDinator_sscore_mpnodeupdate/', '--seq_mode', 'consensus_aa', '--score_mode', 'interface_only', '--custom_pep_reference', '/orcd/pool/008/swans/proteome_amino_acid_distribution/iupred_humanproteome0.7cutoff_aaprob.pkl']
 Will attempt to load all total structures from the binder dataset in complex_only mode
 loading params
 loading params
-{'cov_features': 'all_raw', 'cov_compress': 'project', 'term_use_mpnn': True, 'matches': 'transformer', 'energies_use_mpnn': True, 'energies_full_graph': True, 'contact_idx': True, 'energies_encoder_layers': 3, 'energies_hidden_dim': 128, 'resnet_linear': True, 'matches_linear': True, 'transformer_linear': True, 'term_mpnn_linear': True, 'use_terms': False, 'res_embed_linear': True, 'min_protein_len': 0, 'model': 'multichain', 'term_hidden_dim': 32, 'flex_hidden_dim': 1, 'flex_type': '', 'gradient_checkpointing': True, 'num_pair_stats': 28, 'num_sing_stats': 0, 'resnet_blocks': 4, 'term_layers': 4, 'flex_layers': 4, 'term_heads': 4, 'conv_filter': 3, 'matches_layers': 4, 'matches_num_heads': 4, 'k_neighbors': 30, 'k_cutoff': None, 'cie_dropout': 0.1, 'cie_scaling': 500, 'cie_offset': 0, 'transformer_dropout': 0.1, 'energies_protein_features': 'full', 'energies_augment_eps': 0, 'energies_dropout': 0.1, 'energies_output_dim': 400, 'energies_gvp': False, 'energies_geometric': False, 'sscore_from_embedding': 'self_edge', 'sscore_module': 'linear', 'sscore_module_nhidden': 64, 'struct2seq_linear': False, 'use_flex': False, 'use_coords': True, 'num_features': 9, 'merge_pair_embeddings': True, 'fe_dropout': 0.1, 'fe_max_len': 1000, 'num_ensembles': 1}
+{'cov_features': 'all_raw', 'cov_compress': 'project', 'term_use_mpnn': True, 'matches': 'transformer', 'energies_use_mpnn': True, 'energies_full_graph': True, 'contact_idx': True, 'energies_encoder_layers': 3, 'energies_hidden_dim': 128, 'resnet_linear': True, 'matches_linear': True, 'transformer_linear': True, 'term_mpnn_linear': True, 'use_terms': False, 'res_embed_linear': True, 'sscore_from_embedding': 'node', 'sscore_module': 'aggnode', 'model': 'multichain', 'term_hidden_dim': 32, 'flex_hidden_dim': 1, 'flex_type': '', 'gradient_checkpointing': True, 'num_pair_stats': 28, 'num_sing_stats': 0, 'resnet_blocks': 4, 'term_layers': 4, 'flex_layers': 4, 'term_heads': 4, 'conv_filter': 3, 'matches_layers': 4, 'matches_num_heads': 4, 'k_neighbors': 30, 'k_cutoff': None, 'cie_dropout': 0.1, 'cie_scaling': 500, 'cie_offset': 0, 'transformer_dropout': 0.1, 'energies_protein_features': 'full', 'energies_augment_eps': 0, 'energies_dropout': 0.1, 'energies_output_dim': 400, 'energies_gvp': False, 'energies_geometric': False, 'min_protein_len': 30, 'sscore_module_nhidden': 64, 'struct2seq_linear': False, 'use_flex': False, 'use_coords': True, 'num_features': 9, 'merge_pair_embeddings': True, 'fe_dropout': 0.1, 'fe_max_len': 1000, 'num_ensembles': 1}
 GNN Potts Model Encoder hidden dimensionality is 128
 Loaded custom peptide reference aa probabilites: {'A': 0.077239502, 'R': 0.064524195, 'N': 0.028576171, 'D': 0.050600675, 'C': 0.005304932, 'E': 0.093456877, 'Q': 0.056167561, 'G': 0.093409949, 'H': 0.024454938, 'I': 0.014555994, 'L': 0.050140503, 'K': 0.054443844, 'M': 0.015790823, 'F': 0.009907349, 'P': 0.136898625, 'S': 0.1183944, 'T': 0.061204935, 'W': 0.003948931, 'Y': 0.007683536, 'V': 0.033292756}
 score complexes:  interface_only
@@ -38,7 +38,7 @@ scoring 2KC8_0001 in consensus_aa and interface_only mode
 Energy of native sequence is:  -58.796234130859375
 Energy of native sequence is:  -160.0284423828125
 Energy of new sequence is:  -175.357666015625
-Elapsed time: 0.26512980461120605
+Elapsed time: 2.86083722114563
 Done packing tensor
 Loaded target only 2KC8_0002_target
 Done packing tensor
@@ -67,7 +67,7 @@ scoring 2KC8_0002 in consensus_aa and interface_only mode
 Energy of native sequence is:  -59.94426727294922
 Energy of native sequence is:  -157.00259399414062
 Energy of new sequence is:  -172.25550842285156
-Elapsed time: 0.23528671264648438
+Elapsed time: 0.26838135719299316
 Done packing tensor
 Loaded target only 2KC8_0003_target
 Done packing tensor
@@ -96,7 +96,7 @@ scoring 2KC8_0003 in consensus_aa and interface_only mode
 Energy of native sequence is:  -54.34498977661133
 Energy of native sequence is:  -143.8471221923828
 Energy of new sequence is:  -163.6138458251953
-Elapsed time: 5.423675298690796
+Elapsed time: 0.24703550338745117
 Done packing tensor
 Loaded target only 2KC8_0004_target
 Done packing tensor
@@ -125,7 +125,7 @@ scoring 2KC8_0004 in consensus_aa and interface_only mode
 Energy of native sequence is:  -52.3685417175293
 Energy of native sequence is:  -150.124267578125
 Energy of new sequence is:  -168.14837646484375
-Elapsed time: 5.429926633834839
+Elapsed time: 0.14210033416748047
 Done packing tensor
 Loaded target only 2KC8_0005_target
 Done packing tensor
@@ -154,7 +154,7 @@ scoring 2KC8_0005 in consensus_aa and interface_only mode
 Energy of native sequence is:  -50.86540222167969
 Energy of native sequence is:  -143.1721649169922
 Energy of new sequence is:  -163.94656372070312
-Elapsed time: 5.430265665054321
+Elapsed time: 0.13613486289978027
 Done packing tensor
 Loaded target only 2KC8_0006_target
 Done packing tensor
@@ -183,7 +183,7 @@ scoring 2KC8_0006 in consensus_aa and interface_only mode
 Energy of native sequence is:  -54.361080169677734
 Energy of native sequence is:  -149.6785430908203
 Energy of new sequence is:  -165.92111206054688
-Elapsed time: 3.54725980758667
+Elapsed time: 0.13818955421447754
 Done packing tensor
 Loaded target only 2KC8_0007_target
 Done packing tensor
@@ -212,7 +212,7 @@ scoring 2KC8_0007 in consensus_aa and interface_only mode
 Energy of native sequence is:  -56.89344787597656
 Energy of native sequence is:  -151.28318786621094
 Energy of new sequence is:  -166.67062377929688
-Elapsed time: 0.2560763359069824
+Elapsed time: 0.13906121253967285
 Done packing tensor
 Loaded target only 2KC8_0008_target
 Done packing tensor
@@ -241,7 +241,7 @@ scoring 2KC8_0008 in consensus_aa and interface_only mode
 Energy of native sequence is:  -55.210968017578125
 Energy of native sequence is:  -146.7890625
 Energy of new sequence is:  -161.33428955078125
-Elapsed time: 0.25578951835632324
+Elapsed time: 0.14074039459228516
 Done packing tensor
 Loaded target only 2KC8_0009_target
 Done packing tensor
@@ -270,7 +270,7 @@ scoring 2KC8_0009 in consensus_aa and interface_only mode
 Energy of native sequence is:  -52.8365478515625
 Energy of native sequence is:  -152.51724243164062
 Energy of new sequence is:  -168.5802459716797
-Elapsed time: 0.12777090072631836
+Elapsed time: 0.13805747032165527
 Done packing tensor
 Loaded target only 2KC8_0010_target
 Done packing tensor
@@ -299,7 +299,7 @@ scoring 2KC8_0010 in consensus_aa and interface_only mode
 Energy of native sequence is:  -56.900001525878906
 Energy of native sequence is:  -142.61172485351562
 Energy of new sequence is:  -161.9507598876953
-Elapsed time: 0.12946295738220215
+Elapsed time: 0.14264869689941406
 Done packing tensor
 Loaded target only 2KC8_0011_target
 Done packing tensor
@@ -328,7 +328,7 @@ scoring 2KC8_0011 in consensus_aa and interface_only mode
 Energy of native sequence is:  -54.29426574707031
 Energy of native sequence is:  -143.19595336914062
 Energy of new sequence is:  -165.34820556640625
-Elapsed time: 0.15520548820495605
+Elapsed time: 0.16474461555480957
 Done packing tensor
 Loaded target only 2KC8_0012_target
 Done packing tensor
@@ -357,7 +357,7 @@ scoring 2KC8_0012 in consensus_aa and interface_only mode
 Energy of native sequence is:  -55.90791320800781
 Energy of native sequence is:  -155.41937255859375
 Energy of new sequence is:  -174.2294464111328
-Elapsed time: 0.12865948677062988
+Elapsed time: 0.1388530731201172
 Done packing tensor
 Loaded target only 2KC8_0013_target
 Done packing tensor
@@ -386,7 +386,7 @@ scoring 2KC8_0013 in consensus_aa and interface_only mode
 Energy of native sequence is:  -51.59476852416992
 Energy of native sequence is:  -139.02610778808594
 Energy of new sequence is:  -156.76751708984375
-Elapsed time: 0.1253345012664795
+Elapsed time: 0.13940858840942383
 Done packing tensor
 Loaded target only 2KC8_0014_target
 Done packing tensor
@@ -415,7 +415,7 @@ scoring 2KC8_0014 in consensus_aa and interface_only mode
 Energy of native sequence is:  -54.773372650146484
 Energy of native sequence is:  -147.3638153076172
 Energy of new sequence is:  -162.16355895996094
-Elapsed time: 0.13581371307373047
+Elapsed time: 0.1404111385345459
 Done packing tensor
 Loaded target only 2KC8_0015_target
 Done packing tensor
@@ -444,7 +444,7 @@ scoring 2KC8_0015 in consensus_aa and interface_only mode
 Energy of native sequence is:  -55.181907653808594
 Energy of native sequence is:  -154.274658203125
 Energy of new sequence is:  -171.03343200683594
-Elapsed time: 0.12877845764160156
+Elapsed time: 0.14650273323059082
 Done packing tensor
 Loaded target only 2KC8_0016_target
 Done packing tensor
@@ -473,7 +473,7 @@ scoring 2KC8_0016 in consensus_aa and interface_only mode
 Energy of native sequence is:  -53.35423278808594
 Energy of native sequence is:  -155.8744354248047
 Energy of new sequence is:  -172.39857482910156
-Elapsed time: 0.12842750549316406
+Elapsed time: 0.1379106044769287
 Done packing tensor
 Loaded target only 2KC8_0017_target
 Done packing tensor
@@ -502,7 +502,7 @@ scoring 2KC8_0017 in consensus_aa and interface_only mode
 Energy of native sequence is:  -56.71639633178711
 Energy of native sequence is:  -154.28392028808594
 Energy of new sequence is:  -167.90354919433594
-Elapsed time: 0.13460063934326172
+Elapsed time: 0.13792991638183594
 Done packing tensor
 Loaded target only 2KC8_0018_target
 Done packing tensor
@@ -531,7 +531,7 @@ scoring 2KC8_0018 in consensus_aa and interface_only mode
 Energy of native sequence is:  -51.0623779296875
 Energy of native sequence is:  -146.48199462890625
 Energy of new sequence is:  -162.2178497314453
-Elapsed time: 0.12930941581726074
+Elapsed time: 0.14019536972045898
 Done packing tensor
 Loaded target only 2KC8_0019_target
 Done packing tensor
@@ -560,7 +560,7 @@ scoring 2KC8_0019 in consensus_aa and interface_only mode
 Energy of native sequence is:  -53.84886169433594
 Energy of native sequence is:  -153.8497772216797
 Energy of new sequence is:  -170.16470336914062
-Elapsed time: 0.13148188591003418
+Elapsed time: 0.13770508766174316
 Done packing tensor
 Loaded target only 2KC8_0020_target
 Done packing tensor
@@ -589,6 +589,6 @@ scoring 2KC8_0020 in consensus_aa and interface_only mode
 Energy of native sequence is:  -52.1035041809082
 Energy of native sequence is:  -145.7748565673828
 Energy of new sequence is:  -163.87118530273438
-Elapsed time: 0.133530855178833
+Elapsed time: 0.13779377937316895
 Done!
-Elapsed: 0hrs 0min 27sec
+Elapsed: 0hrs 0min 10sec
