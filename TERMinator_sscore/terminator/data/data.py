@@ -2013,7 +2013,7 @@ def separateTargetAndBinder(target_data,binder_data):
     return concatFeatureDicts(target_data,binder_data)
 
 class BinderScoringIterableDataset(IterableDataset):
-    def __init__(self, filename, target_pdb_path='', max_res_num = 27500, binder_subset=None, mode="binder_and_complex", skip_package=False):
+    def __init__(self, filename, target_pdb_path='', max_res_num = 27500, binder_subset=None, mode="binder_and_complex", skip_package=False, simple_batching=True):
         # the max number of residues per batch (assuming single V100)
         self.max_res_num = max_res_num
 
@@ -2034,6 +2034,7 @@ class BinderScoringIterableDataset(IterableDataset):
             raise ValueError(f"'{mode}' is not a valid modes")
         
         self.skip_package = skip_package
+        self.simple_batching = simple_batching
         
         #Store the filename
         self.filename = filename
@@ -2117,7 +2118,7 @@ class BinderScoringIterableDataset(IterableDataset):
         self.current_binder_data = None
 
         # read through file, loading the binder/complex data and adding to batch 
-        while total_data_len < self.max_res_num - max_num_res_per_structure:
+        while (total_data_len < self.max_res_num - max_num_res_per_structure) and ((not self.simple_batching) or (n_structure_in_batch < 1)):
             # # record start position in case we can't fit this binder/complex in the batch
             # self.binder_start_pos = file.tell()
             self.current_binder_data = self.readPDBFromOpenFile(file)

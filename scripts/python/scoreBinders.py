@@ -145,6 +145,9 @@ if __name__ == '__main__':
         print('score binders against a single target: ',args.score_mode)
         start = stop = 0
         for packaged_binder_complex_data in dataset_iter:
+        # for i,packaged_binder_complex_data in enumerate(dataset_iter):
+        #     with open(f'packaged_binder_complex_data_{i}.pkl', 'wb') as file:
+        #         pickle.dump(packaged_binder_complex_data, file)
             start = time.time()
             if scorer == None:
                 scorer = interfaceScorer(dataset.target_packaged_data,packaged_binder_complex_data,terminator,custom_pep_ref_aa_probs,dev)
@@ -169,6 +172,8 @@ if __name__ == '__main__':
         print('score complexes: ',args.score_mode)
         start = stop = 0
         for idx,(packaged_target_data,packaged_binder_complex_data) in enumerate(dataset_iter):
+        #     with open(f'packaged_binder_complex_data_{idx}.pkl', 'wb') as file:
+        #         pickle.dump(packaged_binder_complex_data, file)
             start = time.time()
             if scorer == None:
                 scorer = interfaceScorer(packaged_target_data,packaged_binder_complex_data,terminator,custom_pep_ref_aa_probs,dev)
