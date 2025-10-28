@@ -18,7 +18,7 @@ TERMrepo=/orcd/home/002/swans/relE_paper/relE_binder_design/
 model=../../TERMinator_model/230310_finetuneCOORDinator_sscore_mpnodeupdate/
 seqMode="consensus_aa"
 scoreMode="interface_only"
-custom_pep_reference=/orcd/pool/008/swans/proteome_amino_acid_distribution/iupred_humanproteome0.7cutoff_aaprob.pkl
+custom_pep_reference=../files/iupred_humanproteome0.7cutoff_aaprob.pkl
 
 echo $PYTHONPATH
 
