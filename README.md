@@ -30,7 +30,7 @@ Note that this environment contains CPU-only pytorch. A legacy conda environment
 #### Dependencies
 
 All C++ specific source code can be found in `/fragment_tools_cpp`. Before building these programs, first set up the following dependencies
-- "Mosaist" or [MST](https://github.com/swanss/Mosaist), a library for working with protein structures and sequences.
+- "Mosaist" or [MST](https://github.com/grigoryanlab/Mosaist), a library for working with protein structures and sequences.
 
 - [FreeSASA](https://github.com/mittinatten/freesasa/releases/tag/2.0.3), for calculating the solvent accessible surface area of biomolecules. Configure with the following command `./configure --disable-json --disable-xml --disable-threads`. 
 
@@ -60,6 +60,10 @@ Use the following commands to build
 - `make test` - builds only programs in the `tests` directory
 - `make bin/[executable name]` - builds the specific executable with its dependencies
 - `make clean` - removes build intermediates and products
+
+### Database files
+
+The structure database files required for running the scripts are available on [zenodo](https://zenodo.org/records/17460599)
 
 ---
 
